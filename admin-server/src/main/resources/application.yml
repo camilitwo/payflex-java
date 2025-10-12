@@ -6,12 +6,10 @@ spring:
   application.name: admin-server
   security.user.name: admin
   security.user.password: ${ADMIN_PWD:SuperSeguro123}
-
-  boot:
-    admin:
-      discovery:
-        enabled: true
-        converter.management-context-path: /actuator
+  boot.admin.discovery.enabled: true
+  boot.admin.discovery.converter.management-context-path: /actuator
 
 management.endpoints.web.exposure.include: "*"
+
+eureka.client.serviceUrl.defaultZone: ${EUREKA_URL:http://discovery-server:8761/eureka}
 
