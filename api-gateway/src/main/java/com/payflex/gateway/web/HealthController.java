@@ -1,4 +1,4 @@
-package com.payflex.web;
+package com.payflex.gateway.web;
 import org.springframework.boot.actuate.health.HealthEndpoint;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
