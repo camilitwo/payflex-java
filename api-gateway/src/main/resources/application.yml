@@ -1,0 +1,24 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lowerCaseServiceId: true
+      httpclient:
+        connect-timeout: 2000
+        response-timeout: 5s
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_URL:http://discovery-server:8761/eureka}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"

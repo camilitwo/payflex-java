@@ -1,0 +1,19 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: merchant-service
+  boot:
+    admin:
+      client:
+        url: ${SPRING_BOOT_ADMIN_URL:http://admin:9090}
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_URL:http://discovery-server:8761/eureka}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"

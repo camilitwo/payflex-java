@@ -1,0 +1,16 @@
+server:
+  port: ${PORT:9090}
+
+spring:
+  application:
+    name: admin
+spring:
+  security:
+    user:
+      name: admin
+      password: ${ADMIN_PWD:admin123}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
