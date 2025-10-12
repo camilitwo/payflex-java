@@ -13,21 +13,21 @@ spring:
             - Path=/actuator/merchant/**
           filters:
             - StripPrefix=2
-        - id: auth-route
-          uri: lb://AUTH-MS-JAVA
+        - id: auth-actuator-route
+          uri: lb://auth-ms-java
           predicates:
             - Path=/actuator/auth/**
           filters:
             - StripPrefix=2
-        - id: auth-route
-          uri: lb://AUTH-MS-JAVA
+        - id: auth-login-route
+          uri: lb://auth-ms-java
           predicates:
             - Path=/auth/login
             - Method=POST
           filters:
             - StripPrefix=0
-        - id: auth-route
-          uri: lb://AUTH-MS-JAVA
+        - id: auth-service-route
+          uri: lb://auth-ms-java
           predicates:
             - Path=/auth/**
           filters:
