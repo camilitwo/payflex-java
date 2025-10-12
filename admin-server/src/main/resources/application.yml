@@ -1,15 +1,17 @@
 server:
   port: ${PORT:9090}
+  forward-headers-strategy: framework  # <-- crítico detrás de proxy (X-Forwarded-Host/Proto)
 
 spring:
-  application:
-    name: admin
-  security:
-    user:
-      name: admin
-      password: ${ADMIN_PWD:admin123}
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "*"
+  application.name: admin-server
+  security.user.name: admin
+  security.user.password: ${ADMIN_PWD:SuperSeguro123}
+
+  boot:
+    admin:
+      discovery:
+        enabled: true
+        converter.management-context-path: /actuator
+
+management.endpoints.web.exposure.include: "*"
+
