@@ -12,4 +12,14 @@ spring:
 management.endpoints.web.exposure.include: "*"
 
 eureka.client.serviceUrl.defaultZone: ${EUREKA_URL:http://discovery-server:8761/eureka}
+eureka.instance.hostname: ${EUREKA_INSTANCE_HOST:${RAILWAY_PRIVATE_DOMAIN:localhost}}
+eureka.instance.prefer-ip-address: false
+eureka.instance.non-secure-port: ${PORT:${server.port:9090}}
+eureka.instance.secure-port-enabled: false
+eureka.instance.instance-id: "${spring.application.name}:${EUREKA_INSTANCE_HOST:${RAILWAY_PRIVATE_DOMAIN:${HOSTNAME}}}:${PORT:${server.port:9090}}"
+eureka.instance.home-page-url: http://${EUREKA_INSTANCE_HOST:${RAILWAY_PRIVATE_DOMAIN:${HOSTNAME}}}:${PORT:${server.port:9090}}/
+eureka.instance.status-page-url: http://${EUREKA_INSTANCE_HOST:${RAILWAY_PRIVATE_DOMAIN:${HOSTNAME}}}:${PORT:${server.port:9090}}/actuator/info
+eureka.instance.health-check-url: http://${EUREKA_INSTANCE_HOST:${RAILWAY_PRIVATE_DOMAIN:${HOSTNAME}}}:${PORT:${server.port:9090}}/actuator/health
+eureka.instance.metadata-map.management.port: ${MANAGEMENT_SERVER_PORT:${PORT:${server.port:9090}}}
+eureka.instance.metadata-map.management.context-path: ${management.endpoints.web.base-path:/actuator}
 
