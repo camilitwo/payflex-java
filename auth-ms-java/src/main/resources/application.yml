@@ -6,7 +6,9 @@ spring:
   boot:
     admin:
       client:
-        url: https://admin-server-production-a57e.up.railway.app  # tu URL pública
+        url: https://admin-server-production-a57e.up.railway.app/
+        username: admin                       # 👈 usuario del Admin
+        password: ${ADMIN_PWD:SuperSeguro123}
         instance:
           # URL privada (para que el admin acceda al Actuator)
           management-base-url: http://${RAILWAY_PRIVATE_DOMAIN}:${PORT:8081}
