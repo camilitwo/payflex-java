@@ -14,20 +14,20 @@ spring:
           filters:
             - StripPrefix=2
         - id: actuator-auth
-          uri: ${AUTH_MS_URI:http://auth-ms-java.railway.internal:8081}
+          uri: lb://AUTH-MS
           predicates:
             - Path=/actuator/auth/**
           filters:
             - StripPrefix=2
         - id: auth-login
-          uri: ${AUTH_MS_URI:http://auth-ms-java.railway.internal:8081}
+          uri: lb://AUTH-MS
           predicates:
             - Path=/auth/login
             - Method=POST
           filters:
             - StripPrefix=0
         - id: auth-service
-          uri: ${AUTH_MS_URI:http://auth-ms-java.railway.internal:8081}
+          uri: lb://AUTH-MS
           predicates:
             - Path=/auth/**
           filters:
