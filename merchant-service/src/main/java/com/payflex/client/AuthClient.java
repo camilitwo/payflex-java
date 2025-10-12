@@ -1,4 +1,4 @@
-package com.example.client;
+package com.payflex.client;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 @FeignClient(name="auth-ms-java", path="/")

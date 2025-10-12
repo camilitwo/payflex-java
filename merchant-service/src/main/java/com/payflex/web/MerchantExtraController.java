@@ -1,5 +1,5 @@
-package com.example.web;
-import com.example.client.AuthClient;
+package com.payflex.web;
+import com.payflex.client.AuthClient;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;

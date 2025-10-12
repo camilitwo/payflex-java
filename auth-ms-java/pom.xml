@@ -9,7 +9,7 @@
     <relativePath/>
   </parent>
 
-  <groupId>com.example</groupId>
+  <groupId>com.payflex</groupId>
   <artifactId>auth-ms-java</artifactId>
   <version>1.0.0</version>
 

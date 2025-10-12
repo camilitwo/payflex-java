@@ -9,7 +9,7 @@
     <relativePath/>
   </parent>
 
-  <groupId>com.example</groupId>
+  <groupId>com.payflex</groupId>
   <artifactId>merchant-service</artifactId> <!-- cambia por el nombre -->
   <version>1.0.0</version>
 
