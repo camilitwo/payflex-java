@@ -2,18 +2,21 @@ server:
   port: ${PORT:8081}
 
 spring:
-  application:
-    name: auth-ms-java
+  application.name: auth-ms-java  # cambia según el MS
   boot:
     admin:
       client:
-        url: ${SPRING_BOOT_ADMIN_URL:http://admin:9090}
+        url: https://admin-server-production-a57e.up.railway.app  # tu URL pública
+        instance:
+          # URL privada (para que el admin acceda al Actuator)
+          management-base-url: http://${RAILWAY_PRIVATE_DOMAIN}:${PORT:8081}
+          service-base-url: http://${RAILWAY_PRIVATE_DOMAIN}:${PORT:8081}
+
 eureka:
   client:
     serviceUrl:
       defaultZone: ${EUREKA_URL:http://discovery-server:8761/eureka}
+
 management:
-  endpoints:
-    web:
-      exposure:
-        include: "*"
+  endpoints.web.exposure.include: "*"
+  endpoint.health.show-details: ALWAYS

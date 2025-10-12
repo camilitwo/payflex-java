@@ -6,6 +6,19 @@ spring:
     name: api-gateway
   cloud:
     gateway:
+      routes:
+        - id: actuator-merchant
+          uri: lb://merchant-service
+          predicates:
+            - Path=/actuator/merchant/**
+          filters:
+            - StripPrefix=2
+        - id: actuator-auth
+          uri: lb://auth-ms-java
+          predicates:
+            - Path=/actuator/auth/**
+          filters:
+            - StripPrefix=2
       discovery:
         locator:
           enabled: true
