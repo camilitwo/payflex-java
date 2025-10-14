@@ -1,7 +1,7 @@
 name: Sleep Railway Services (cron)
 
 on:
-  # 03:00 UTC ≈ medianoche aprox. en Chile (ajusta si quieres)
+  # Se ejecuta cada día a las 03:00 UTC (medianoche en Chile aprox)
   schedule:
     - cron: "0 03 * * *"
   workflow_dispatch:
@@ -25,8 +25,8 @@ jobs:
           "merchant-service",
           "payment-orchestrator",
           "admin-server"
-          # normalmente NO dormimos discovery-server
         ]
+        # ⚠️ no duermas el discovery-server si los demás lo necesitan
 
     steps:
       - uses: actions/checkout@v4
@@ -34,8 +34,8 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Put ${{ matrix.service }} in sleep mode (profile) and redeploy
+      - name: Apply sleep profile to ${{ matrix.service }}
         run: |
-          railway variables up --service "${{ matrix.service }}" \
-            SPRING_PROFILES_ACTIVE=sleep \
-            ROLLING_RESTART=${{ github.run_id }}
+          echo "⏸️ Durmiendo servicio: ${{ matrix.service }}"
+          railway variables set SPRING_PROFILES_ACTIVE sleep --service "${{ matrix.service }}"
+          railway variables set ROLLING_RESTART ${{ github.run_id }} --service "${{ matrix.service }}"
