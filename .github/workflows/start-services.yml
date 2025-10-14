@@ -36,6 +36,6 @@ jobs:
         run: |
           for SVC in ${{ steps.build.outputs.LIST }}; do
             echo "▶️ Iniciando $SVC…"
-            railway variables set SPRING_PROFILES_ACTIVE=prod --service "$SVC"
-            railway variables set ROLLING_RESTART=${{ github.run_id }} --service "$SVC"
+            railway variables --set "SPRING_PROFILES_ACTIVE=prod" --service "$SVC"
+            railway variables --set "ROLLING_RESTART=${{ github.run_id }}" --service "$SVC"
           done

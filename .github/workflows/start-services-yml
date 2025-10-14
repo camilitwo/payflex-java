@@ -35,7 +35,7 @@ jobs:
       - name: Set prod profile and redeploy
         run: |
           for SVC in ${{ steps.build.outputs.LIST }}; do
-            echo "▶️ Iniciando $SVC…"
-            railway variables set SPRING_PROFILES_ACTIVE=prod --service "$SVC"
-            railway variables set ROLLING_RESTART=${{ github.run_id }} --service "$SVC"
+            echo "\u25b6\ufe0f Iniciando $SVC\u2026"
+            railway variables --set "SPRING_PROFILES_ACTIVE=prod" --service "$SVC"
+            railway variables --set "ROLLING_RESTART=${{ github.run_id }}" --service "$SVC"
           done

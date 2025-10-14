@@ -28,5 +28,5 @@ jobs:
 
       - name: Put ${{ matrix.service }} in sleep profile and redeploy
         run: |
-          railway variables set SPRING_PROFILES_ACTIVE=sleep --service "${{ matrix.service }}"
-          railway variables set ROLLING_RESTART=${{ github.run_id }} --service "${{ matrix.service }}"
+          railway variables --set "SPRING_PROFILES_ACTIVE=sleep" --service "${{ matrix.service }}"
+          railway variables --set "ROLLING_RESTART=${{ github.run_id }}" --service "${{ matrix.service }}"
