@@ -60,3 +60,47 @@ management:
     web:
       exposure:
         include: "*"
+
+---
+
+spring:
+  profiles: sleep
+
+  cloud:
+    # Apaga discovery en general
+    discovery:
+      enabled: false
+    gateway:
+      # Desactiva el Service Discovery Locator y cualquier llamada automática
+      discovery:
+        locator:
+          enabled: false
+      httpclient:
+        # Conexión mínima por si llega un ping externo accidentalmente
+        max-connections: 10
+        pool:
+          max-idle-time: 10s
+
+  boot:
+    admin:
+      client:
+        enabled: false
+
+eureka:
+  client:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health"
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: NEVER
+
+logging:
+  level:
+    root: WARN

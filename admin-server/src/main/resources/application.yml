@@ -23,3 +23,39 @@ eureka.instance.health-check-url: http://${EUREKA_INSTANCE_HOST:${RAILWAY_PRIVAT
 eureka.instance.metadata-map.management.port: ${MANAGEMENT_SERVER_PORT:${PORT:${server.port:9090}}}
 eureka.instance.metadata-map.management.context-path: ${management.endpoints.web.base-path:/actuator}
 
+---
+
+spring:
+  profiles: sleep
+
+  boot:
+    admin:
+      # El propio server se puede dejar arriba o apagarlo completo
+      # Aquí deshabilitamos la integración por discovery
+      discovery:
+        enabled: false
+
+  security:
+    user:
+      name: admin
+      password: ${ADMIN_PWD:admin}  # no se usa en sleep, pero evita fallos si arranca
+
+eureka:
+  client:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health"
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: NEVER
+
+logging:
+  level:
+    root: WARN
+
