@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}   # <- SOLO este secret
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}   # <- token desde secrets
       RAILWAY_PROJECT: ${{ secrets.RAILWAY_PROJECT }}
       RAILWAY_ENV: ${{ secrets.RAILWAY_ENV }}
 
