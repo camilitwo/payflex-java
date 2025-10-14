@@ -56,35 +56,3 @@ management:
   endpoints.web.exposure.include: "*"
   endpoint.health.show-details: ALWAYS
 
----
-
-# ========== PERFIL SLEEP ==========
-spring:
-  profiles: sleep
-
-  cloud:
-    discovery:
-      enabled: false
-  boot:
-    admin:
-      client:
-        enabled: false
-
-eureka:
-  client:
-    enabled: false
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "health"
-  endpoint:
-    health:
-      probes:
-        enabled: true
-      show-details: NEVER
-
-logging:
-  level:
-    root: WARN
