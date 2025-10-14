@@ -1,0 +1,47 @@
+name: Sleep Railway Services (cron)
+
+on:
+  schedule:
+    - cron: "0 02 * * *"   # Todos los días 02:00 UTC (23:00 Chile aprox.)
+  workflow_dispatch:       # también lo puedes disparar a mano
+
+jobs:
+  sleep:
+    runs-on: ubuntu-latest
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_PROJECT: ${{ secrets.RAILWAY_PROJECT }}
+      RAILWAY_ENV: ${{ secrets.RAILWAY_ENV }}
+
+    strategy:
+      matrix:
+        service: [
+          "api-gateway",
+          "auth-ms-java",
+          "merchant-service",
+          "payment-orchestrator",
+          "admin-server"
+        ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli
+
+      - name: Login to Railway
+        run: railway login --apiKey "$RAILWAY_TOKEN"
+
+      - name: Select project/environment
+        run: |
+          railway project "$RAILWAY_PROJECT"
+          railway environment "$RAILWAY_ENV"
+
+      - name: Set SPRING_PROFILES_ACTIVE=sleep for ${{ matrix.service }}
+        run: |
+          railway variables set SPRING_PROFILES_ACTIVE=sleep --service "${{ matrix.service }}"
+
+      - name: Force redeploy (rolling bump) for ${{ matrix.service }}
+        run: |
+          railway variables set ROLLING_RESTART=${{ github.run_id }} --service "${{ matrix.service }}"
