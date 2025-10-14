@@ -2,8 +2,8 @@ name: Sleep Railway Services (cron)
 
 on:
   schedule:
-    - cron: "0 02 * * *"   # Todos los días 02:00 UTC (23:00 Chile aprox.)
-  workflow_dispatch:       # también lo puedes disparar a mano
+    - cron: "0 02 * * *"   # 02:00 UTC = 23:00 Chile aprox.
+  workflow_dispatch:
 
 jobs:
   sleep:
@@ -28,20 +28,25 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Railway CLI
-        run: npm i -g @railway/cli
+        run: npm install -g @railway/cli
 
-      - name: Login to Railway
-        run: railway login --apiKey "$RAILWAY_TOKEN"
+      - name: Verify Railway login
+        run: |
+          export RAILWAY_TOKEN="${{ secrets.RAILWAY_TOKEN }}"
+          railway whoami
 
       - name: Select project/environment
         run: |
+          export RAILWAY_TOKEN="${{ secrets.RAILWAY_TOKEN }}"
           railway project "$RAILWAY_PROJECT"
           railway environment "$RAILWAY_ENV"
 
       - name: Set SPRING_PROFILES_ACTIVE=sleep for ${{ matrix.service }}
         run: |
+          export RAILWAY_TOKEN="${{ secrets.RAILWAY_TOKEN }}"
           railway variables set SPRING_PROFILES_ACTIVE=sleep --service "${{ matrix.service }}"
 
-      - name: Force redeploy (rolling bump) for ${{ matrix.service }}
+      - name: Force redeploy for ${{ matrix.service }}
         run: |
+          export RAILWAY_TOKEN="${{ secrets.RAILWAY_TOKEN }}"
           railway variables set ROLLING_RESTART=${{ github.run_id }} --service "${{ matrix.service }}"
