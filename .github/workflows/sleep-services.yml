@@ -1,58 +1,32 @@
-name: Start Railway Services (manual)
+name: Sleep Railway Services (cron)
 
 on:
+  schedule:
+    - cron: "0 03 * * *"   # 03:00 UTC ~ 00:00 Chile aprox.
   workflow_dispatch:
-    inputs:
-      services:
-        description: "Servicios a iniciar (coma-separados) o 'all'"
-        required: true
-        default: "api-gateway,auth-ms-java,merchant-service,payment-orchestrator,admin-server"
 
 concurrency:
-  group: start-services
+  group: sleep-services
   cancel-in-progress: true
 
 jobs:
-  start:
+  sleep:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      RAILWAY_PROJECT: ${{ secrets.RAILWAY_PROJECT }}
-      RAILWAY_ENV: ${{ secrets.RAILWAY_ENV }}
-      SERVICES: ${{ github.event.inputs.services }}
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}   # <- SOLO este secret
+
+    strategy:
+      matrix:
+        service: [ "api-gateway", "auth-ms-java", "merchant-service", "payment-orchestrator", "admin-server" ]
 
     steps:
+      - uses: actions/checkout@v4
+
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Verify auth
-        run: railway whoami
-
-      - name: Select project/environment
+      - name: Put ${{ matrix.service }} in sleep profile and redeploy
         run: |
-          railway project "$RAILWAY_PROJECT"
-          railway environment "$RAILWAY_ENV"
-
-      - name: Build services list
-        id: build
-        run: |
-          if [ "$SERVICES" = "all" ]; then
-            echo "LIST=api-gateway auth-ms-java merchant-service payment-orchestrator admin-server" >> $GITHUB_OUTPUT
-          else
-            # convierte "a,b,c" -> "a b c"
-            echo "LIST=$(echo "$SERVICES" | tr ',' ' ' | xargs)" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Set prod profile and redeploy
-        run: |
-          for SVC in ${{ steps.build.outputs.LIST }}; do
-            echo "▶️ Iniciando $SVC (perfil prod)…"
-            railway variables set SPRING_PROFILES_ACTIVE=prod --service "$SVC"
-            # Forzar rolling restart para aplicar el perfil sin tocar código
-            railway variables set ROLLING_RESTART=${{ github.run_id }} --service "$SVC"
-          done
-
-      - name: Summary
-        run: |
-          echo "Servicios iniciados: ${{ steps.build.outputs.LIST }}"
+          railway variables set SPRING_PROFILES_ACTIVE=sleep --service "${{ matrix.service }}"
+          railway variables set ROLLING_RESTART=${{ github.run_id }} --service "${{ matrix.service }}"
