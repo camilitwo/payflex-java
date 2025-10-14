@@ -1,0 +1,41 @@
+name: Start Railway Services (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      services:
+        description: "Servicios a iniciar (coma-separados) o 'all'"
+        required: true
+        default: "api-gateway,auth-ms-java,merchant-service,payment-orchestrator,admin-server"
+
+concurrency:
+  group: start-services
+  cancel-in-progress: true
+
+jobs:
+  start:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+    steps:
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Build list
+        id: build
+        run: |
+          if [ "${{ github.event.inputs.services }}" = "all" ]; then
+            echo "LIST=api-gateway auth-ms-java merchant-service payment-orchestrator admin-server" >> $GITHUB_OUTPUT
+          else
+            echo "LIST=$(echo '${{ github.event.inputs.services }}' | tr ',' ' ' | xargs)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set prod profile and redeploy
+        run: |
+          for SVC in ${{ steps.build.outputs.LIST }}; do
+            echo "▶️ Iniciando $SVC…"
+            railway variables set SPRING_PROFILES_ACTIVE=prod --service "$SVC"
+            railway variables set ROLLING_RESTART=${{ github.run_id }} --service "$SVC"
+          done
