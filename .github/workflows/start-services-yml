@@ -18,11 +18,10 @@ jobs:
     timeout-minutes: 10
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_PROJECT: ${{ secrets.RAILWAY_PROJECT }}
+      RAILWAY_ENV: ${{ secrets.RAILWAY_ENV }}
 
     steps:
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
       - name: Build list
         id: build
         run: |
@@ -35,7 +34,7 @@ jobs:
       - name: Set prod profile and redeploy
         run: |
           for SVC in ${{ steps.build.outputs.LIST }}; do
-            echo "\u25b6\ufe0f Iniciando $SVC\u2026"
-            railway variables --set "SPRING_PROFILES_ACTIVE=prod" --service "$SVC"
-            railway variables --set "ROLLING_RESTART=${{ github.run_id }}" --service "$SVC"
+            echo "\\u25b6\\ufe0f Iniciando $SVC\\u2026"
+            npx --yes @railway/cli variables --set "SPRING_PROFILES_ACTIVE=prod" --service "$SVC"
+            npx --yes @railway/cli variables --set "ROLLING_RESTART=${{ github.run_id }}" --service "$SVC"
           done
