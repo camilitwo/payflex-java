@@ -13,6 +13,14 @@ spring:
             - Path=/actuator/merchant/**
           filters:
             - StripPrefix=2
+        - id: merchant-service-route
+          uri: lb://merchant-service
+          predicates:
+            - Path=/merchant/**
+            - Header=Authorization, .*
+          filters:
+            - StripPrefix=1
+            - RemoveRequestHeader=Cookie
         - id: auth-actuator-route
           uri: lb://auth-ms-java
           predicates:
