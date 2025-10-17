@@ -19,6 +19,38 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
   @Override
   public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
     try {
+      // First, normalize any existing SPRING_R2DBC_URL that doesn't start with r2dbc:
+      String rawR2dbc = environment.getProperty("spring.r2dbc.url");
+      if (rawR2dbc == null) rawR2dbc = environment.getProperty("SPRING_R2DBC_URL");
+      if (rawR2dbc != null && !rawR2dbc.isBlank() && !rawR2dbc.startsWith("r2dbc:")) {
+        // Attempt to normalize common prefixes
+        String normalized;
+        if (rawR2dbc.startsWith("postgresql://")) {
+          normalized = "r2dbc:" + rawR2dbc;
+        } else if (rawR2dbc.startsWith("postgres://")) {
+          normalized = rawR2dbc.replaceFirst("^postgres://", "r2dbc:postgresql://");
+        } else {
+          normalized = "r2dbc:postgresql://" + rawR2dbc;
+        }
+        Map<String,Object> nprops = new HashMap<>();
+        nprops.put("spring.r2dbc.url", normalized);
+        environment.getPropertySources().addFirst(new MapPropertySource(SOURCE_NAME + "-norm-r2dbc", nprops));
+        log.info("DatabaseUrlEnvPostProcessor: normalized existing spring.r2dbc.url to r2dbc scheme");
+      }
+
+      // Normalize SPRING_DATASOURCE_URL if present but starts with postgres:// or postgresql://
+      String rawJdbc = environment.getProperty("spring.datasource.url");
+      if (rawJdbc == null) rawJdbc = environment.getProperty("SPRING_DATASOURCE_URL");
+      if (rawJdbc != null && !rawJdbc.isBlank() && (rawJdbc.startsWith("postgres://") || rawJdbc.startsWith("postgresql://"))) {
+        // convert to jdbc:postgresql://host:port/db...
+        String tmp = rawJdbc.replaceFirst("^postgres://", "jdbc:postgresql://");
+        tmp = tmp.replaceFirst("^postgresql://", "jdbc:postgresql://");
+        Map<String,Object> jprops = new HashMap<>();
+        jprops.put("spring.datasource.url", tmp);
+        environment.getPropertySources().addFirst(new MapPropertySource(SOURCE_NAME + "-norm-jdbc", jprops));
+        log.info("DatabaseUrlEnvPostProcessor: normalized existing spring.datasource.url to JDBC scheme");
+      }
+
       // Check if already configured
       boolean hasR2dbc = environment.containsProperty("spring.r2dbc.url") || environment.containsProperty("SPRING_R2DBC_URL");
       boolean hasDatasource = environment.containsProperty("spring.datasource.url") || environment.containsProperty("SPRING_DATASOURCE_URL");
@@ -57,9 +89,24 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
       String r2dbcUrl;
       if (databaseUrl.startsWith("r2dbc:")) {
         r2dbcUrl = databaseUrl;
-      } else {
-        // convert postgres://user:pass@host:port/db -> r2dbc:postgresql://user:pass@host:port/db
+      } else if (databaseUrl.startsWith("postgresql://")) {
+        // prefix postgresQL scheme with r2dbc:
+        r2dbcUrl = "r2dbc:" + databaseUrl;
+      } else if (databaseUrl.startsWith("postgres://")) {
+        // convert postgres:// -> r2dbc:postgresql://
         r2dbcUrl = databaseUrl.replaceFirst("^postgres://", "r2dbc:postgresql://");
+      } else {
+        // Fallback: prefix with r2dbc: if unknown
+        r2dbcUrl = "r2dbc:postgresql://" + databaseUrl;
+      }
+      // Preserve query parameters in r2dbc URL as well (some providers need sslmode etc.)
+      if (uri.getQuery() != null && !uri.getQuery().isBlank()) {
+        String q = uri.getQuery();
+        if (!r2dbcUrl.contains("?")) {
+          r2dbcUrl = r2dbcUrl + "?" + q;
+        } else {
+          r2dbcUrl = r2dbcUrl + "&" + q;
+        }
       }
 
       String jdbcUrl = String.format("jdbc:postgresql://%s:%d/%s", host, port, database);
