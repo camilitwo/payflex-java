@@ -1,4 +1,4 @@
-package com.payflex.merchant.config;
+package com.payflex.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

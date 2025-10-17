@@ -1,17 +1,17 @@
-package com.payflex.merchant.service;
+package com.payflex.service;
 
-import com.payflex.merchant.dto.CreateMerchantRequest;
-import com.payflex.merchant.dto.MerchantResponse;
-import com.payflex.merchant.dto.MerchantConfigResponse;
-import com.payflex.merchant.dto.MerchantUserResponse;
-import com.payflex.merchant.model.Merchant;
-import com.payflex.merchant.model.MerchantBalance;
-import com.payflex.merchant.model.MerchantPaymentConfig;
-import com.payflex.merchant.model.MerchantUser;
-import com.payflex.merchant.repository.MerchantBalanceRepository;
-import com.payflex.merchant.repository.MerchantPaymentConfigRepository;
-import com.payflex.merchant.repository.MerchantRepository;
-import com.payflex.merchant.repository.MerchantUserRepository;
+
+import com.payflex.dto.CreateMerchantRequest;
+import com.payflex.dto.MerchantConfigResponse;
+import com.payflex.dto.MerchantResponse;
+import com.payflex.dto.MerchantUserResponse;
+import com.payflex.model.Merchant;
+import com.payflex.model.MerchantBalance;
+import com.payflex.model.MerchantPaymentConfig;
+import com.payflex.repository.MerchantBalanceRepository;
+import com.payflex.repository.MerchantPaymentConfigRepository;
+import com.payflex.repository.MerchantRepository;
+import com.payflex.repository.MerchantUserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

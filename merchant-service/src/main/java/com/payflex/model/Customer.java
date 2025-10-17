@@ -1,4 +1,4 @@
-package com.payflex.merchant.model;
+package com.payflex.model;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;

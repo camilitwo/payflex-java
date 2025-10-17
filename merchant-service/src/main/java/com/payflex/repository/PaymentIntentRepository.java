@@ -1,6 +1,7 @@
-package com.payflex.merchant.repository;
+package com.payflex.repository;
 
-import com.payflex.merchant.model.PaymentIntent;
+
+import com.payflex.model.PaymentIntent;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;

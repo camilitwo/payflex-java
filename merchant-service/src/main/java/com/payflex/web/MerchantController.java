@@ -1,10 +1,11 @@
 package com.payflex.web;
 
-import com.payflex.merchant.dto.CreateMerchantRequest;
-import com.payflex.merchant.dto.MerchantConfigResponse;
-import com.payflex.merchant.dto.MerchantResponse;
-import com.payflex.merchant.dto.MerchantUserResponse;
-import com.payflex.merchant.service.MerchantService;
+
+import com.payflex.dto.CreateMerchantRequest;
+import com.payflex.dto.MerchantConfigResponse;
+import com.payflex.dto.MerchantResponse;
+import com.payflex.dto.MerchantUserResponse;
+import com.payflex.service.MerchantService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

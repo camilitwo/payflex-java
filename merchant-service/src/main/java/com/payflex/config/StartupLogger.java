@@ -1,4 +1,4 @@
-package com.payflex.merchant.config;
+package com.payflex.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;

@@ -1,4 +1,4 @@
-package com.payflex.merchant.model;
+package com.payflex.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

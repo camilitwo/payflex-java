@@ -1,6 +1,7 @@
-package com.payflex.merchant.repository;
+package com.payflex.repository;
 
-import com.payflex.merchant.model.MerchantUser;
+
+import com.payflex.model.MerchantUser;
 import org.springframework.data.r2dbc.repository.Query;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import org.springframework.stereotype.Repository;

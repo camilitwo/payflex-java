@@ -1,4 +1,4 @@
-package com.payflex.merchant.dto;
+package com.payflex.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
