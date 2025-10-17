@@ -2,12 +2,17 @@ server:
   port: ${PORT:8083}
 
 spring:
-  application:
-    name: merchant-service
+  application.name: merchant-service # cambia según el MS
   boot:
     admin:
       client:
-        url: ${SPRING_BOOT_ADMIN_URL:http://admin:9090}
+        url: https://admin-server-production-a57e.up.railway.app/
+        username: admin                       # 👈 usuario del Admin
+        password: ${ADMIN_PWD:SuperSeguro123}
+        instance:
+          management-base-url: http://${RAILWAY_PRIVATE_DOMAIN}:${PORT:8083}
+          service-base-url: http://${RAILWAY_PRIVATE_DOMAIN}:${PORT:8083}
+
 eureka:
   client:
     serviceUrl:
