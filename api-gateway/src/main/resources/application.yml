@@ -7,6 +7,12 @@ spring:
   cloud:
     gateway:
       routes:
+        - id: actuator-merchant
+          uri: lb://merchant-service
+          predicates:
+            - Path=/actuator/merchant/**
+          filters:
+            - StripPrefix=2
         - id: auth-actuator-route
           uri: lb://auth-ms-java
           predicates:
