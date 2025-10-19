@@ -6,6 +6,7 @@ import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
@@ -20,6 +21,7 @@ import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverterAdapter;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatchers;
 import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
@@ -35,16 +37,25 @@ public class SecurityConfig {
   private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
   @Bean
-  SecurityWebFilterChain securityFilterChain(ServerHttpSecurity http) {
+  @Order(1)
+  SecurityWebFilterChain publicChain(ServerHttpSecurity http) {
+    http
+        .securityMatcher(ServerWebExchangeMatchers.pathMatchers("/.well-known/**", "/auth/**", "/me/**", "/actuator/health"))
+        .csrf(ServerHttpSecurity.CsrfSpec::disable)
+        .authorizeExchange(auth -> auth
+            .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+            .anyExchange().permitAll()
+        );
+    return http.build();
+  }
+
+  @Bean
+  @Order(2)
+  SecurityWebFilterChain protectedChain(ServerHttpSecurity http) {
     http
         .csrf(ServerHttpSecurity.CsrfSpec::disable)
         .authorizeExchange(auth -> auth
             .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-            .pathMatchers("/actuator/health").permitAll()
-            .pathMatchers("/.well-known/jwks.json").permitAll()
-            .pathMatchers("/auth/**").permitAll()
-            .pathMatchers("/me/**").permitAll()
-            .pathMatchers("/api/**").authenticated()
             .anyExchange().authenticated()
         )
         .oauth2ResourceServer(oauth2 -> oauth2
