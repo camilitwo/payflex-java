@@ -7,6 +7,13 @@ spring:
   cloud:
     gateway:
       routes:
+        - id: jwks-proxy
+          uri: lb://auth-ms-java
+          predicates:
+            - Path=/.well-known/jwks.json
+            - Method=GET
+          filters:
+            - StripPrefix=0
         - id: actuator-merchant
           uri: lb://merchant-service
           predicates:

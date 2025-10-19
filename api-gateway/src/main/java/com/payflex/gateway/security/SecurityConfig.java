@@ -2,6 +2,8 @@ package com.payflex.gateway.security;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cloud.client.ServiceInstance;
+import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
@@ -23,6 +25,7 @@ import reactor.core.publisher.Mono;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Configuration
@@ -38,6 +41,7 @@ public class SecurityConfig {
         .authorizeExchange(auth -> auth
             .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
             .pathMatchers("/actuator/health").permitAll()
+            .pathMatchers("/.well-known/jwks.json").permitAll()
             .pathMatchers("/auth/**").permitAll()
             .pathMatchers("/api/**").authenticated()
             .anyExchange().authenticated()
@@ -49,11 +53,57 @@ public class SecurityConfig {
   }
 
   @Bean
-  public ReactiveJwtDecoder jwtDecoder(Environment env) {
-    String base = resolveAuthBase(env);
-    String jwkSetUri = base.endsWith("/") ? base + ".well-known/jwks.json" : base + "/.well-known/jwks.json";
-    log.info("Security: AUTH_BFF JWKS URI='{}'", jwkSetUri);
-    return NimbusReactiveJwtDecoder.withJwkSetUri(jwkSetUri).build();
+  public ReactiveJwtDecoder jwtDecoder(Environment env, DiscoveryClient discoveryClient) {
+    // 0) Override explícito
+    String explicitJwks = env.getProperty("AUTH_JWKS_URI");
+    if (isNotBlank(explicitJwks)) {
+      log.info("Security: Using explicit AUTH_JWKS_URI='{}'", explicitJwks);
+      return NimbusReactiveJwtDecoder.withJwkSetUri(explicitJwks.trim()).build();
+    }
+
+    // 1) Resolver por Eureka (serviceId configurable)
+    String serviceId = env.getProperty("AUTH_SERVICE_ID", "auth-ms-java");
+    Optional<ServiceInstance> authInstance = chooseServiceInstance(discoveryClient, serviceId);
+    if (authInstance.isPresent()) {
+      ServiceInstance inst = authInstance.get();
+      String scheme = inst.isSecure() ? "https" : "http";
+      String host = inst.getHost();
+      int port = inst.getPort();
+      String eurekaJwks = scheme + "://" + host + ":" + port + "/.well-known/jwks.json";
+      log.info("Security: Using Eureka-resolved JWKS URI='{}' (serviceId={})", eurekaJwks, serviceId);
+      return NimbusReactiveJwtDecoder.withJwkSetUri(eurekaJwks).build();
+    } else {
+      log.warn("Security: No Eureka instances found for serviceId='{}'. Falling back to gateway self-proxy.", serviceId);
+    }
+
+    // 2) Fallback: proxy local del gateway (ruta ya mapeada via lb://auth-ms-java)
+    String port = firstNonBlank(env.getProperty("PORT"), env.getProperty("server.port"), "8080");
+    String selfProxiedJwks = "http://localhost:" + port + "/.well-known/jwks.json";
+    log.info("Security: Using self-proxied JWKS URI='{}'", selfProxiedJwks);
+    return NimbusReactiveJwtDecoder.withJwkSetUri(selfProxiedJwks).build();
+  }
+
+  private boolean isNotBlank(String s) { return s != null && !s.isBlank(); }
+
+  private Optional<ServiceInstance> chooseServiceInstance(DiscoveryClient discoveryClient, String serviceId) {
+    try {
+      List<ServiceInstance> instances = discoveryClient.getInstances(serviceId);
+      if (instances != null && !instances.isEmpty()) {
+        // Estrategia simple: primera instancia registrada
+        return Optional.of(instances.get(0));
+      }
+    } catch (Exception e) {
+      log.warn("Security: DiscoveryClient failed for serviceId='{}': {}", serviceId, e.toString());
+    }
+    return Optional.empty();
+  }
+
+  private String firstNonBlank(String... values) {
+    if (values == null) return null;
+    for (String v : values) {
+      if (v != null && !v.isBlank()) return v;
+    }
+    return null;
   }
 
   private String resolveAuthBase(Environment env) {
