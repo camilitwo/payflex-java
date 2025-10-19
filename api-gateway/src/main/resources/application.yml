@@ -14,6 +14,13 @@ spring:
             - Method=GET
           filters:
             - StripPrefix=0
+        - id: me-route
+          uri: lb://auth-ms-java
+          predicates:
+            - Path=/me/**
+            - Method=GET
+          filters:
+            - StripPrefix=0
         - id: actuator-merchant
           uri: lb://merchant-service
           predicates:

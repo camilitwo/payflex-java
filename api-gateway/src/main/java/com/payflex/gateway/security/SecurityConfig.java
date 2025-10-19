@@ -43,6 +43,7 @@ public class SecurityConfig {
             .pathMatchers("/actuator/health").permitAll()
             .pathMatchers("/.well-known/jwks.json").permitAll()
             .pathMatchers("/auth/**").permitAll()
+            .pathMatchers("/me/**").permitAll()
             .pathMatchers("/api/**").authenticated()
             .anyExchange().authenticated()
         )
