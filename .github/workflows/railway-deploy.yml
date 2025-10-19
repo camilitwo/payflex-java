@@ -1,0 +1,115 @@
+name: Deploy changed services to Railway
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - "release/*"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  detect-changes:
+    name: Detect modified services
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      has-changes: ${{ steps.set-matrix.outputs.has-changes }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            admin:
+              - 'admin-server/**'
+            api_gateway:
+              - 'api-gateway/**'
+            auth:
+              - 'auth-ms-java/**'
+            discovery:
+              - 'discovery-server/**'
+            merchant:
+              - 'merchant-service/**'
+            payment:
+              - 'payment-orchestrator/**'
+
+      - name: Build deployment matrix
+        id: set-matrix
+        run: |
+          services=()
+          add_service() {
+            services+=("\"$1\"")
+          }
+
+          if [ "${{ steps.filter.outputs.admin }}" = 'true' ]; then
+            add_service "admin-server"
+          fi
+          if [ "${{ steps.filter.outputs.api_gateway }}" = 'true' ]; then
+            add_service "api-gateway"
+          fi
+          if [ "${{ steps.filter.outputs.auth }}" = 'true' ]; then
+            add_service "auth-ms-java"
+          fi
+          if [ "${{ steps.filter.outputs.discovery }}" = 'true' ]; then
+            add_service "discovery-server"
+          fi
+          if [ "${{ steps.filter.outputs.merchant }}" = 'true' ]; then
+            add_service "merchant-service"
+          fi
+          if [ "${{ steps.filter.outputs.payment }}" = 'true' ]; then
+            add_service "payment-orchestrator"
+          fi
+
+          if [ ${#services[@]} -eq 0 ]; then
+            echo "matrix={\"service\":[]}" >> "$GITHUB_OUTPUT"
+            echo "has-changes=false" >> "$GITHUB_OUTPUT"
+          else
+            joined=$(IFS=,; echo "${services[*]}")
+            echo "matrix={\"service\":[${joined}]}" >> "$GITHUB_OUTPUT"
+            echo "has-changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    name: Deploy service to Railway
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has-changes == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+      RAILWAY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_ENVIRONMENT_ID }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Authenticate Railway CLI
+        if: env.RAILWAY_TOKEN != ''
+        run: railway login --token "$RAILWAY_TOKEN"
+
+      - name: Select Railway project and environment
+        if: env.RAILWAY_PROJECT_ID != ''
+        run: |
+          railway use --project "$RAILWAY_PROJECT_ID"
+          if [ -n "$RAILWAY_ENVIRONMENT_ID" ]; then
+            railway use --environment "$RAILWAY_ENVIRONMENT_ID"
+          fi
+
+      - name: Deploy changed service
+        env:
+          SERVICE_PATH: ${{ matrix.service }}
+        run: |
+          echo "Deploying $SERVICE_PATH to Railway"
+          railway up --service "$SERVICE_PATH" --base-directory "$SERVICE_PATH"
