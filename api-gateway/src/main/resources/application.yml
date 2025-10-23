@@ -32,7 +32,7 @@ spring:
           predicates:
             - Path=/merchants/**
           filters:
-            - RewritePath=/merchants/(?<segment>.*), /api/v1/merchants/$\{segment}
+            - RewritePath=/merchants/(?<segment>.*), /merchants/$\{segment}
         - id: auth-actuator-route
           uri: lb://auth-ms-java
           predicates:
