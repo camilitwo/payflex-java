@@ -2,9 +2,11 @@ package com.payflex.web;
 
 
 import com.payflex.dto.CreateMerchantRequest;
+import com.payflex.dto.DashboardMetricsDto;
 import com.payflex.dto.MerchantConfigResponse;
 import com.payflex.dto.MerchantResponse;
 import com.payflex.dto.MerchantUserResponse;
+import com.payflex.service.DashboardService;
 import com.payflex.service.MerchantService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +22,7 @@ import reactor.core.publisher.Mono;
 public class MerchantController {
 
     private final MerchantService merchantService;
+    private final DashboardService dashboardService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -75,5 +78,11 @@ public class MerchantController {
     public Mono<MerchantConfigResponse> getMerchantConfig(@PathVariable String merchantId) {
         log.info("Received request to get merchant config: {}", merchantId);
         return merchantService.getMerchantConfig(merchantId);
+    }
+
+    @GetMapping("/{merchantId}/dashboard/metrics")
+    public Mono<DashboardMetricsDto> getDashboardMetrics(@PathVariable String merchantId) {
+        log.info("Received request to get dashboard metrics for merchant: {}", merchantId);
+        return dashboardService.getDashboardMetrics(merchantId);
     }
 }

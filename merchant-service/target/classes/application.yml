@@ -1,0 +1,36 @@
+server:
+  port: ${PORT:8083}
+
+spring:
+  application.name: merchant-service # cambia según el MS
+  boot:
+    admin:
+      client:
+        url: https://admin-server-production-a57e.up.railway.app/
+        username: admin                       # 👈 usuario del Admin
+        password: ${ADMIN_PWD:SuperSeguro123}
+        instance:
+          management-base-url: http://${RAILWAY_PRIVATE_DOMAIN}:${PORT:8083}
+          service-base-url: http://${RAILWAY_PRIVATE_DOMAIN}:${PORT:8083}
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_URL:http://discovery-server:8761/eureka}
+  instance:
+    hostname: ${EUREKA_INSTANCE_HOST:${RAILWAY_PRIVATE_DOMAIN:localhost}}
+    prefer-ip-address: false
+    non-secure-port: ${PORT:${server.port:8083}}
+    secure-port-enabled: false
+    instance-id: "${spring.application.name}:${EUREKA_INSTANCE_HOST:${RAILWAY_PRIVATE_DOMAIN:${HOSTNAME}}}:${PORT:${server.port:8083}}"
+    home-page-url: http://${EUREKA_INSTANCE_HOST:${RAILWAY_PRIVATE_DOMAIN:${HOSTNAME}}}:${PORT:${server.port:8083}}/
+    status-page-url: http://${EUREKA_INSTANCE_HOST:${RAILWAY_PRIVATE_DOMAIN:${HOSTNAME}}}:${PORT:${server.port:8083}}/actuator/info
+    health-check-url: http://${EUREKA_INSTANCE_HOST:${RAILWAY_PRIVATE_DOMAIN:${HOSTNAME}}}:${PORT:${server.port:8083}}/actuator/health
+    metadata-map:
+      management.port: ${MANAGEMENT_SERVER_PORT:${PORT:${server.port:8083}}}
+      management.context-path: ${management.endpoints.web.base-path:/actuator}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
