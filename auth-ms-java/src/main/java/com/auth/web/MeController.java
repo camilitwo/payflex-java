@@ -89,6 +89,37 @@ public class MeController {
     });
   }
 
+  @GetMapping(value = "/me/merchant/dashboard/stats", produces = MediaType.APPLICATION_JSON_VALUE)
+  public Mono<ResponseEntity<Map<String,Object>>> dashboardStats(@AuthenticationPrincipal Jwt jwt) {
+    return Mono.fromSupplier(() -> {
+      if (jwt == null) return ResponseEntity.status(401).build();
+
+      // Estructura de respuesta con estadísticas del dashboard
+      Map<String,Object> response = new LinkedHashMap<>();
+
+      // Transacciones
+      Map<String,Object> transactions = new LinkedHashMap<>();
+      transactions.put("count", 1234L);
+      transactions.put("percentageChange", 12.0);
+      response.put("transactions", transactions);
+
+      // Ingresos
+      Map<String,Object> income = new LinkedHashMap<>();
+      income.put("amount", 45678.00);
+      income.put("currency", "USD");
+      income.put("percentageChange", 8.0);
+      response.put("income", income);
+
+      // Crecimiento
+      Map<String,Object> growth = new LinkedHashMap<>();
+      growth.put("percentage", 23.0);
+      growth.put("percentageChange", 5.0);
+      response.put("growth", growth);
+
+      return ResponseEntity.ok(response);
+    });
+  }
+
   private String optionalString(Jwt jwt, String claim) {
     Object v = jwt.getClaims().get(claim);
     return v == null ? null : String.valueOf(v);
