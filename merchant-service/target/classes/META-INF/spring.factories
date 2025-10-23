@@ -1,3 +1,0 @@
-org.springframework.boot.env.EnvironmentPostProcessor=\
-com.payflex.config.DatabaseUrlEnvironmentPostProcessor
-
