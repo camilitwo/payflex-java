@@ -27,6 +27,12 @@ spring:
             - Path=/actuator/merchant/**
           filters:
             - StripPrefix=2
+        - id: merchant-service-route
+          uri: lb://merchant-service
+          predicates:
+            - Path=/merchants/**
+          filters:
+            - RewritePath=/merchants/(?<segment>.*), /api/v1/merchants/$\{segment}
         - id: auth-actuator-route
           uri: lb://auth-ms-java
           predicates:
