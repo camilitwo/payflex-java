@@ -25,7 +25,9 @@ public class MerchantAuthFilter implements GlobalFilter, Ordered {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getURI().getPath();
 
-        if (path != null && (path.equals("/merchant") || path.startsWith("/merchant/"))) {
+        // Verificar rutas de merchant (singular y plural)
+        if (path != null && (path.equals("/merchant") || path.startsWith("/merchant/")
+                || path.equals("/merchants") || path.startsWith("/merchants/"))) {
             List<String> auth = request.getHeaders().get(HttpHeaders.AUTHORIZATION);
             if (auth == null || auth.isEmpty() || auth.get(0).isBlank()) {
                 ServerHttpResponse response = exchange.getResponse();
@@ -33,6 +35,7 @@ public class MerchantAuthFilter implements GlobalFilter, Ordered {
                 log.warn("[GATEWAY][AUTH] Blocking request to {} - missing Authorization header", path);
                 return response.setComplete();
             }
+            log.info("[GATEWAY][AUTH] Authorization header present for {}", path);
         }
 
         return chain.filter(exchange);

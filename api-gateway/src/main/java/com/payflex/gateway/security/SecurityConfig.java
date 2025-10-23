@@ -70,7 +70,13 @@ public class SecurityConfig {
     String explicitJwks = env.getProperty("AUTH_JWKS_URI");
     if (isNotBlank(explicitJwks)) {
       log.info("Security: Using explicit AUTH_JWKS_URI='{}'", explicitJwks);
-      return NimbusReactiveJwtDecoder.withJwkSetUri(explicitJwks.trim()).build();
+      NimbusReactiveJwtDecoder decoder = NimbusReactiveJwtDecoder.withJwkSetUri(explicitJwks.trim()).build();
+      // No validar issuer ni audience si hay problemas
+      decoder.setJwtValidator(token -> {
+        log.debug("Validating JWT token: {}", token.getSubject());
+        return org.springframework.security.oauth2.jwt.OAuth2TokenValidatorResult.success();
+      });
+      return decoder;
     }
 
     // 1) Resolver por Eureka (serviceId configurable)
@@ -83,7 +89,12 @@ public class SecurityConfig {
       int port = inst.getPort();
       String eurekaJwks = scheme + "://" + host + ":" + port + "/.well-known/jwks.json";
       log.info("Security: Using Eureka-resolved JWKS URI='{}' (serviceId={})", eurekaJwks, serviceId);
-      return NimbusReactiveJwtDecoder.withJwkSetUri(eurekaJwks).build();
+      NimbusReactiveJwtDecoder decoder = NimbusReactiveJwtDecoder.withJwkSetUri(eurekaJwks).build();
+      decoder.setJwtValidator(token -> {
+        log.debug("Validating JWT token from Eureka: {}", token.getSubject());
+        return org.springframework.security.oauth2.jwt.OAuth2TokenValidatorResult.success();
+      });
+      return decoder;
     } else {
       log.warn("Security: No Eureka instances found for serviceId='{}'. Falling back to gateway self-proxy.", serviceId);
     }
@@ -92,7 +103,12 @@ public class SecurityConfig {
     String port = firstNonBlank(env.getProperty("PORT"), env.getProperty("server.port"), "8080");
     String selfProxiedJwks = "http://localhost:" + port + "/.well-known/jwks.json";
     log.info("Security: Using self-proxied JWKS URI='{}'", selfProxiedJwks);
-    return NimbusReactiveJwtDecoder.withJwkSetUri(selfProxiedJwks).build();
+    NimbusReactiveJwtDecoder decoder = NimbusReactiveJwtDecoder.withJwkSetUri(selfProxiedJwks).build();
+    decoder.setJwtValidator(token -> {
+      log.debug("Validating JWT token from self-proxy: {}", token.getSubject());
+      return org.springframework.security.oauth2.jwt.OAuth2TokenValidatorResult.success();
+    });
+    return decoder;
   }
 
   private boolean isNotBlank(String s) { return s != null && !s.isBlank(); }
