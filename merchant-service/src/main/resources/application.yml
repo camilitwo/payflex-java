@@ -13,6 +13,40 @@ spring:
           management-base-url: http://${RAILWAY_PRIVATE_DOMAIN}:${PORT:8083}
           service-base-url: http://${RAILWAY_PRIVATE_DOMAIN}:${PORT:8083}
 
+datasource:
+  url: ${JDBC_URL:jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}}
+  username: ${DB_USER}
+  password: ${DB_PASSWORD}
+  driver-class-name: org.postgresql.Driver
+  hikari:
+    maximum-pool-size: 10
+    minimum-idle: 2
+    idle-timeout: 10000
+    pool-name: MerchantHikariPool
+
+  r2dbc:
+    # igual idea con R2DBC_URL
+    url: ${R2DBC_URL:r2dbc:postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        show_sql: false
+        format_sql: false
+
+  flyway:
+    enabled: true
+    url: ${JDBC_URL:jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}}
+    user: ${DB_USER}
+    password: ${DB_PASSWORD}
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
 eureka:
   client:
     serviceUrl:
