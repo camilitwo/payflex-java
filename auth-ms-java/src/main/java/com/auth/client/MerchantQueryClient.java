@@ -1,6 +1,7 @@
 package com.auth.client;
 
 
+import com.auth.dto.DashboardStatsDto;
 import com.auth.dto.MeMerchantConfigDto;
 import com.auth.dto.MeMerchantDto;
 import com.auth.dto.MeMerchantUserDto;
@@ -77,6 +78,18 @@ public class MerchantQueryClient {
             .bodyToMono(MeMerchantConfigDto.class)
             .timeout(Duration.ofSeconds(5))
             .doOnError(e -> log.error("[MQC][ERR] getMerchantConfig id={} msg={}", merchantId, e.getMessage()))
+            .onErrorResume(e -> Mono.empty());
+    }
+
+    public Mono<DashboardStatsDto> getDashboardStats(String merchantId, String bearer) {
+        return client.get()
+            .uri("/merchants/{id}/dashboard/stats", merchantId)
+            .accept(MediaType.APPLICATION_JSON)
+            .header(HttpHeaders.AUTHORIZATION, bearer)
+            .retrieve()
+            .bodyToMono(DashboardStatsDto.class)
+            .timeout(Duration.ofSeconds(5))
+            .doOnError(e -> log.error("[MQC][ERR] getDashboardStats id={} msg={}", merchantId, e.getMessage()))
             .onErrorResume(e -> Mono.empty());
     }
 }

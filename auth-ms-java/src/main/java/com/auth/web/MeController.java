@@ -1,10 +1,19 @@
 package com.auth.web;
 
+import com.auth.client.MerchantQueryClient;
+import com.auth.dto.DashboardStatsDto;
+import com.auth.dto.MeMerchantConfigDto;
+import com.auth.dto.MeMerchantDto;
+import com.auth.dto.MeMerchantUserDto;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
@@ -14,115 +23,204 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Endpoints /me simples basados en los claims del JWT.
- * Estos sirven a los scripts de test mientras se implementa la integración real con merchant-service.
+ * Endpoints /me que integran con merchant-service para obtener datos reales de la base de datos.
  */
+@Slf4j
 @RestController
+@RequiredArgsConstructor
 public class MeController {
 
+  private final MerchantQueryClient merchantQueryClient;
+
   @GetMapping(value = "/me/merchant", produces = MediaType.APPLICATION_JSON_VALUE)
-  public Mono<ResponseEntity<Map<String,Object>>> merchant(@AuthenticationPrincipal Jwt jwt) {
-    return Mono.fromSupplier(() -> {
-      if (jwt == null) return ResponseEntity.status(401).build();
-      String merchantId = optionalString(jwt, "merchantId");
-      if (merchantId == null || merchantId.isBlank()) {
-        // Fallback derivado del sub (igual que en AuthController login)
-        String sub = optionalString(jwt, "sub");
-        if (sub != null && !sub.isBlank()) {
-          merchantId = "mrc_" + sub.substring(0, Math.min(sub.length(), 8));
-        }
-      }
-      Map<String,Object> body = new LinkedHashMap<>();
-      body.put("merchantId", merchantId);
-      body.put("status", "active");
-      body.put("source", "jwt-only");
-      return ResponseEntity.ok(body);
-    });
+  public Mono<ResponseEntity<MeMerchantDto>> merchant(
+      @AuthenticationPrincipal Jwt jwt,
+      @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader) {
+
+    if (jwt == null) {
+      log.warn("[MeController] JWT no presente en /me/merchant");
+      return Mono.just(ResponseEntity.status(401).build());
+    }
+
+    String merchantId = extractMerchantId(jwt);
+    if (merchantId == null || merchantId.isBlank()) {
+      log.warn("[MeController] merchantId no encontrado en JWT claims");
+      return Mono.just(ResponseEntity.status(400).build());
+    }
+
+    String bearer = (authHeader != null && authHeader.startsWith("Bearer "))
+        ? authHeader
+        : "Bearer " + jwt.getTokenValue();
+
+    log.info("[MeController] Obteniendo merchant desde DB: merchantId={}", merchantId);
+
+    return merchantQueryClient.getMerchant(merchantId, bearer)
+        .map(ResponseEntity::ok)
+        .defaultIfEmpty(ResponseEntity.notFound().build())
+        .doOnError(e -> log.error("[MeController] Error obteniendo merchant: {}", e.getMessage(), e));
   }
 
   @GetMapping(value = "/me/merchant/users", produces = MediaType.APPLICATION_JSON_VALUE)
-  public Mono<ResponseEntity<List<Map<String,Object>>>> merchantUsers(@AuthenticationPrincipal Jwt jwt) {
-    return Mono.fromSupplier(() -> {
-      if (jwt == null) return ResponseEntity.status(401).build();
-      String userId = optionalString(jwt, "sub");
-      @SuppressWarnings("unchecked")
-      List<String> roles = (List<String>) jwt.getClaims().getOrDefault("roles", List.of("MERCHANT_ADMIN"));
-      Map<String,Object> user = new LinkedHashMap<>();
-      user.put("userId", userId);
-      user.put("email", optionalString(jwt, "email")); // puede que sea null si no se incluyó
-      user.put("roles", roles);
-      user.put("merchantId", optionalString(jwt, "merchantId"));
-      return ResponseEntity.ok(List.of(user));
-    });
+  public Mono<ResponseEntity<List<MeMerchantUserDto>>> merchantUsers(
+      @AuthenticationPrincipal Jwt jwt,
+      @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader) {
+
+    if (jwt == null) {
+      log.warn("[MeController] JWT no presente en /me/merchant/users");
+      return Mono.just(ResponseEntity.status(401).build());
+    }
+
+    String merchantId = extractMerchantId(jwt);
+    if (merchantId == null || merchantId.isBlank()) {
+      log.warn("[MeController] merchantId no encontrado en JWT claims para /users");
+      return Mono.just(ResponseEntity.status(400).build());
+    }
+
+    String bearer = (authHeader != null && authHeader.startsWith("Bearer "))
+        ? authHeader
+        : "Bearer " + jwt.getTokenValue();
+
+    log.info("[MeController] Obteniendo usuarios desde DB: merchantId={}", merchantId);
+
+    return merchantQueryClient.getMerchantUsers(merchantId, bearer)
+        .collectList()
+        .map(users -> {
+          if (users.isEmpty()) {
+            log.info("[MeController] No se encontraron usuarios para merchantId={}", merchantId);
+          }
+          return ResponseEntity.ok(users);
+        })
+        .defaultIfEmpty(ResponseEntity.ok(List.of()))
+        .doOnError(e -> log.error("[MeController] Error obteniendo usuarios: {}", e.getMessage(), e));
   }
 
   @GetMapping(value = "/me/merchant/config", produces = MediaType.APPLICATION_JSON_VALUE)
-  public Mono<ResponseEntity<Map<String,Object>>> merchantConfig(@AuthenticationPrincipal Jwt jwt) {
-    return Mono.fromSupplier(() -> {
-      if (jwt == null) return ResponseEntity.status(401).build();
-      String merchantId = optionalString(jwt, "merchantId");
-      Map<String,Object> cfg = new LinkedHashMap<>();
-      cfg.put("merchantId", merchantId);
-      cfg.put("defaultCurrency", "CLP");
-      cfg.put("paymentMethodsEnabled", "[\"card\",\"transfer\"]"); // string json (mantener compat con script existente)
-      cfg.put("autoCapture", Boolean.TRUE);
-      cfg.put("webhookUrl", null);
-      cfg.put("statementDescriptor", null);
-      cfg.put("createdAt", null);
-      cfg.put("updatedAt", null);
-      return ResponseEntity.ok(cfg);
-    });
+  public Mono<ResponseEntity<MeMerchantConfigDto>> merchantConfig(
+      @AuthenticationPrincipal Jwt jwt,
+      @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader) {
+
+    if (jwt == null) {
+      log.warn("[MeController] JWT no presente en /me/merchant/config");
+      return Mono.just(ResponseEntity.status(401).build());
+    }
+
+    String merchantId = extractMerchantId(jwt);
+    if (merchantId == null || merchantId.isBlank()) {
+      log.warn("[MeController] merchantId no encontrado en JWT claims para /config");
+      return Mono.just(ResponseEntity.status(400).build());
+    }
+
+    String bearer = (authHeader != null && authHeader.startsWith("Bearer "))
+        ? authHeader
+        : "Bearer " + jwt.getTokenValue();
+
+    log.info("[MeController] Obteniendo configuración desde DB: merchantId={}", merchantId);
+
+    return merchantQueryClient.getMerchantConfig(merchantId, bearer)
+        .map(ResponseEntity::ok)
+        .defaultIfEmpty(ResponseEntity.notFound().build())
+        .doOnError(e -> log.error("[MeController] Error obteniendo config: {}", e.getMessage(), e));
   }
 
   @GetMapping(value = "/me/merchant/summary", produces = MediaType.APPLICATION_JSON_VALUE)
-  public Mono<ResponseEntity<Map<String,Object>>> merchantSummary(@AuthenticationPrincipal Jwt jwt) {
-    return Mono.fromSupplier(() -> {
-      if (jwt == null) return ResponseEntity.status(401).build();
-      Map<String,Object> summary = new LinkedHashMap<>();
-      summary.put("merchantId", optionalString(jwt, "merchantId"));
-      summary.put("totalUsers", 1);
-      summary.put("totalPaymentIntents", 0);
-      summary.put("totalVolumeMinorUnits", 0);
-      summary.put("currency", "CLP");
-      summary.put("generatedAt", Instant.now().toString());
-      return ResponseEntity.ok(summary);
-    });
+  public Mono<ResponseEntity<Map<String,Object>>> merchantSummary(
+      @AuthenticationPrincipal Jwt jwt,
+      @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader) {
+
+    if (jwt == null) {
+      log.warn("[MeController] JWT no presente en /me/merchant/summary");
+      return Mono.just(ResponseEntity.status(401).build());
+    }
+
+    String merchantId = extractMerchantId(jwt);
+    if (merchantId == null || merchantId.isBlank()) {
+      log.warn("[MeController] merchantId no encontrado en JWT claims para /summary");
+      return Mono.just(ResponseEntity.status(400).build());
+    }
+
+    String bearer = (authHeader != null && authHeader.startsWith("Bearer "))
+        ? authHeader
+        : "Bearer " + jwt.getTokenValue();
+
+    log.info("[MeController] Obteniendo summary desde DB: merchantId={}", merchantId);
+
+    // Combinar datos de merchant y usuarios
+    Mono<MeMerchantDto> merchantMono = merchantQueryClient.getMerchant(merchantId, bearer)
+        .defaultIfEmpty(MeMerchantDto.builder().merchantId(merchantId).build());
+
+    Mono<Long> userCountMono = merchantQueryClient.getMerchantUsers(merchantId, bearer)
+        .count()
+        .defaultIfEmpty(0L);
+
+    return Mono.zip(merchantMono, userCountMono)
+        .map(tuple -> {
+          MeMerchantDto merchant = tuple.getT1();
+          Long userCount = tuple.getT2();
+
+          Map<String,Object> summary = new LinkedHashMap<>();
+          summary.put("merchantId", merchant.getMerchantId());
+          summary.put("businessName", merchant.getBusinessName());
+          summary.put("status", merchant.getStatus());
+          summary.put("totalUsers", userCount);
+          summary.put("availableBalance", merchant.getAvailableBalance());
+          summary.put("pendingBalance", merchant.getPendingBalance());
+          summary.put("currency", merchant.getCurrency());
+          summary.put("onboardingCompleted", merchant.getOnboardingCompleted());
+          summary.put("generatedAt", Instant.now().toString());
+
+          return ResponseEntity.ok(summary);
+        })
+        .doOnError(e -> log.error("[MeController] Error obteniendo summary: {}", e.getMessage(), e));
   }
 
   @GetMapping(value = "/me/merchant/dashboard/stats", produces = MediaType.APPLICATION_JSON_VALUE)
-  public Mono<ResponseEntity<Map<String,Object>>> dashboardStats(@AuthenticationPrincipal Jwt jwt) {
-    return Mono.fromSupplier(() -> {
-      if (jwt == null) return ResponseEntity.status(401).build();
+  public Mono<ResponseEntity<DashboardStatsDto>> dashboardStats(
+      @AuthenticationPrincipal Jwt jwt,
+      @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader) {
 
-      // Estructura de respuesta con estadísticas del dashboard
-      Map<String,Object> response = new LinkedHashMap<>();
+    if (jwt == null) {
+      log.warn("[MeController] JWT no presente en /me/merchant/dashboard/stats");
+      return Mono.just(ResponseEntity.status(401).build());
+    }
 
-      // Transacciones
-      Map<String,Object> transactions = new LinkedHashMap<>();
-      transactions.put("count", 1234L);
-      transactions.put("percentageChange", 12.0);
-      response.put("transactions", transactions);
+    String merchantId = extractMerchantId(jwt);
+    if (merchantId == null || merchantId.isBlank()) {
+      log.warn("[MeController] merchantId no encontrado en JWT claims para /dashboard/stats");
+      return Mono.just(ResponseEntity.status(400).build());
+    }
 
-      // Ingresos
-      Map<String,Object> income = new LinkedHashMap<>();
-      income.put("amount", 45678.00);
-      income.put("currency", "USD");
-      income.put("percentageChange", 8.0);
-      response.put("income", income);
+    String bearer = (authHeader != null && authHeader.startsWith("Bearer "))
+        ? authHeader
+        : "Bearer " + jwt.getTokenValue();
 
-      // Crecimiento
-      Map<String,Object> growth = new LinkedHashMap<>();
-      growth.put("percentage", 23.0);
-      growth.put("percentageChange", 5.0);
-      response.put("growth", growth);
+    log.info("[MeController] Obteniendo dashboard stats desde DB: merchantId={}", merchantId);
 
-      return ResponseEntity.ok(response);
-    });
+    return merchantQueryClient.getDashboardStats(merchantId, bearer)
+        .map(ResponseEntity::ok)
+        .defaultIfEmpty(ResponseEntity.notFound().build())
+        .doOnError(e -> log.error("[MeController] Error obteniendo dashboard stats: {}", e.getMessage(), e));
   }
 
-  private String optionalString(Jwt jwt, String claim) {
-    Object v = jwt.getClaims().get(claim);
-    return v == null ? null : String.valueOf(v);
+  /**
+   * Extrae el merchantId del JWT. Primero intenta obtenerlo del claim "merchantId",
+   * si no existe, lo deriva del "sub" (userId).
+   */
+  private String extractMerchantId(Jwt jwt) {
+    Object merchantIdObj = jwt.getClaims().get("merchantId");
+    if (merchantIdObj != null) {
+      return String.valueOf(merchantIdObj);
+    }
+
+    // Fallback: derivar del sub (igual que en AuthController)
+    Object subObj = jwt.getClaims().get("sub");
+    if (subObj != null) {
+      String sub = String.valueOf(subObj);
+      if (!sub.isBlank()) {
+        return "mrc_" + sub.substring(0, Math.min(sub.length(), 8));
+      }
+    }
+
+    return null;
   }
 }
 
