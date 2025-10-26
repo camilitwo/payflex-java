@@ -72,7 +72,6 @@
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>r2dbc-postgresql</artifactId>
-      <scope>runtime</scope>
     </dependency>
 
     <!-- PostgreSQL JDBC Driver (para migraciones) -->

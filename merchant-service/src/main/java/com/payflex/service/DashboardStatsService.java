@@ -45,12 +45,18 @@ public class DashboardStatsService {
                 .sumAmountByMerchantIdAndStatusAndCreatedAtBetween(merchantId, successStatus, previousPeriodStart, previousPeriodEnd)
                 .defaultIfEmpty(0L);
 
-        return Mono.zip(currentTransactionCount, previousTransactionCount, currentIncomeAmount, previousIncomeAmount)
+        // Obtener la moneda más común del merchant en el período actual
+        Mono<String> currency = paymentIntentRepository
+                .findMostCommonCurrencyByMerchantIdAndStatusAndCreatedAtBetween(merchantId, successStatus, currentPeriodStart, now)
+                .defaultIfEmpty("CLP");
+
+        return Mono.zip(currentTransactionCount, previousTransactionCount, currentIncomeAmount, previousIncomeAmount, currency)
                 .map(tuple -> {
                     Long currentTxCount = tuple.getT1();
                     Long previousTxCount = tuple.getT2();
                     Long currentIncome = tuple.getT3();
                     Long previousIncome = tuple.getT4();
+                    String merchantCurrency = tuple.getT5();
 
                     // Calcular porcentajes de cambio
                     Double transactionPercentageChange = calculatePercentageChange(previousTxCount, currentTxCount);
@@ -69,8 +75,8 @@ public class DashboardStatsService {
                                     .percentageChange(transactionPercentageChange)
                                     .build())
                             .income(DashboardStatsResponse.IncomeStats.builder()
-                                    .amount(BigDecimal.valueOf(currentIncome).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP))
-                                    .currency("USD")
+                                    .amount(formatAmount(currentIncome, merchantCurrency))
+                                    .currency(merchantCurrency)
                                     .percentageChange(incomePercentageChange)
                                     .build())
                             .growth(DashboardStatsResponse.GrowthStats.builder()
@@ -101,6 +107,38 @@ public class DashboardStatsService {
         // Promedio ponderado: más peso a los ingresos (60%) que a las transacciones (40%)
         double growthRate = (transactionChange * 0.4) + (incomeChange * 0.6);
         return Math.round(growthRate * 100.0) / 100.0;
+    }
+
+    /**
+     * Formatea el monto según la moneda.
+     * Monedas sin decimales (zero-decimal currencies): JPY, KRW, CLP, etc. no se dividen por 100
+     * Monedas normales: USD, EUR, GBP, etc. se dividen por 100
+     */
+    private BigDecimal formatAmount(Long amountInCents, String currency) {
+        if (amountInCents == null) {
+            return BigDecimal.ZERO;
+        }
+
+        // Monedas que no usan decimales (ya vienen en unidades completas, no en centavos)
+        String[] zeroDecimalCurrencies = {"JPY", "KRW", "CLP", "VND", "ISK", "BIF", "DJF", "GNF",
+                                          "KMF", "XAF", "XOF", "XPF", "RWF", "UGX", "VUV", "PYG"};
+
+        boolean isZeroDecimal = false;
+        for (String curr : zeroDecimalCurrencies) {
+            if (curr.equalsIgnoreCase(currency)) {
+                isZeroDecimal = true;
+                break;
+            }
+        }
+
+        if (isZeroDecimal) {
+            // Para monedas sin decimales, el monto ya está en la unidad correcta
+            return BigDecimal.valueOf(amountInCents);
+        } else {
+            // Para monedas con decimales, dividir por 100 para convertir centavos a unidades
+            return BigDecimal.valueOf(amountInCents)
+                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        }
     }
 }
 

@@ -5,8 +5,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class HealthController {
+
   private final HealthEndpoint health;
   public HealthController(HealthEndpoint health){ this.health = health; }
+
   @GetMapping("/health")
   public ResponseEntity<?> health(){
     var h = health.health();

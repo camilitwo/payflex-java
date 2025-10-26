@@ -44,4 +44,12 @@ public interface PaymentIntentRepository extends ReactiveCrudRepository<PaymentI
         LocalDateTime startDate,
         LocalDateTime endDate
     );
+
+    @Query("SELECT currency FROM payment_intents WHERE merchant_id = :merchantId AND status = :status AND created_at >= :startDate AND created_at <= :endDate GROUP BY currency ORDER BY COUNT(*) DESC LIMIT 1")
+    Mono<String> findMostCommonCurrencyByMerchantIdAndStatusAndCreatedAtBetween(
+        String merchantId,
+        String status,
+        LocalDateTime startDate,
+        LocalDateTime endDate
+    );
 }

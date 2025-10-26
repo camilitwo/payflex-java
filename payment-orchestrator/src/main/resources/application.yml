@@ -4,6 +4,17 @@ server:
 spring:
   application:
     name: payment-orchestrator
+  data:
+    redis:
+      host: ${REDISHOST:redis.railway.internal}
+      port: ${REDISPORT:6379}
+      password: ${REDISPASSWORD:}
+      username: ${REDISUSER:default}
+
+# Configuración de idempotencia
+idempotency:
+  enabled: ${IDEMPOTENCY_ENABLED:true}
+  fail-on-redis-error: ${IDEMPOTENCY_FAIL_ON_ERROR:false}
   boot:
     admin:
       client:
@@ -29,3 +40,44 @@ management:
     web:
       exposure:
         include: "*"
+  health:
+    redis:
+      enabled: true
+    defaults:
+      enabled: true
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+
+---
+# Configuración para desarrollo local
+spring:
+  config:
+    activate:
+      on-profile: local
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      username: default
+
+idempotency:
+  enabled: false  # Deshabilitar idempotencia en local si no tienes Redis
+
+eureka:
+  client:
+    enabled: false
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka
+  instance:
+    hostname: localhost
+    prefer-ip-address: false
+
+logging:
+  level:
+    com.payflex.config.RedisHealthConfig: ERROR  # Silenciar warnings de Redis en local
+    org.springframework.data.redis: ERROR
+
