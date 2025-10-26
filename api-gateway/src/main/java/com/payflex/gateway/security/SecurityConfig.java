@@ -15,6 +15,8 @@ import org.springframework.security.config.annotation.web.reactive.EnableWebFlux
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
@@ -74,7 +76,7 @@ public class SecurityConfig {
       // No validar issuer ni audience si hay problemas
       decoder.setJwtValidator(token -> {
         log.debug("Validating JWT token: {}", token.getSubject());
-        return org.springframework.security.oauth2.jwt.OAuth2TokenValidatorResult.success();
+        return OAuth2TokenValidatorResult.success();
       });
       return decoder;
     }
@@ -92,7 +94,7 @@ public class SecurityConfig {
       NimbusReactiveJwtDecoder decoder = NimbusReactiveJwtDecoder.withJwkSetUri(eurekaJwks).build();
       decoder.setJwtValidator(token -> {
         log.debug("Validating JWT token from Eureka: {}", token.getSubject());
-        return org.springframework.security.oauth2.jwt.OAuth2TokenValidatorResult.success();
+        return OAuth2TokenValidatorResult.success();
       });
       return decoder;
     } else {
@@ -106,7 +108,7 @@ public class SecurityConfig {
     NimbusReactiveJwtDecoder decoder = NimbusReactiveJwtDecoder.withJwkSetUri(selfProxiedJwks).build();
     decoder.setJwtValidator(token -> {
       log.debug("Validating JWT token from self-proxy: {}", token.getSubject());
-      return org.springframework.security.oauth2.jwt.OAuth2TokenValidatorResult.success();
+      return OAuth2TokenValidatorResult.success();
     });
     return decoder;
   }
