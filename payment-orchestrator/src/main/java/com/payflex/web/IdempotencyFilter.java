@@ -16,7 +16,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 
-@Component
+/*@Component
 @Order(-10)
 @ConditionalOnProperty(name = "idempotency.enabled", havingValue = "true", matchIfMissing = true)
 public class IdempotencyFilter implements org.springframework.web.server.WebFilter {
@@ -27,7 +27,7 @@ public class IdempotencyFilter implements org.springframework.web.server.WebFilt
   @Value("${idempotency.fail-on-redis-error:false}")
   private boolean failOnRedisError;
 
-  public IdempotencyFilter(@Qualifier("reactiveStringRedisTemplate") ReactiveRedisTemplate<String, String> redis) {
+  public IdempotencyFilter(@Qualifier("org.springframework.data.redis.core.RedisTemplate") ReactiveRedisTemplate<String, String> redis) {
     this.redis = redis;
     log.info("IdempotencyFilter activado - failOnRedisError={}", failOnRedisError);
   }
@@ -63,4 +63,4 @@ public class IdempotencyFilter implements org.springframework.web.server.WebFilt
           return chain.filter(exchange);
         });
   }
-}
+}*/

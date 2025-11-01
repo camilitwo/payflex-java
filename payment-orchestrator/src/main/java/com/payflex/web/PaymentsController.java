@@ -3,6 +3,7 @@ package com.payflex.web;
 import com.payflex.client.MerchantServiceClient;
 import com.payflex.dto.CreatePaymentIntentRequest;
 import com.payflex.dto.PaymentIntentResponse;
+import com.payflex.event.producer.PaymentEventProducer;
 import com.payflex.security.MerchantAccess;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,10 +23,12 @@ public class PaymentsController {
 
   private final MerchantAccess merchantAccess;
   private final MerchantServiceClient merchantServiceClient;
+  private final PaymentEventProducer paymentEventProducer;
 
-  public PaymentsController(MerchantAccess merchantAccess, MerchantServiceClient merchantServiceClient) {
+  public PaymentsController(MerchantAccess merchantAccess, MerchantServiceClient merchantServiceClient, PaymentEventProducer paymentEventProducer) {
     this.merchantAccess = merchantAccess;
     this.merchantServiceClient = merchantServiceClient;
+      this.paymentEventProducer = paymentEventProducer;
   }
 
   @PostMapping(value="/intents", consumes=MediaType.APPLICATION_JSON_VALUE, produces=MediaType.APPLICATION_JSON_VALUE)
@@ -85,17 +88,14 @@ public class PaymentsController {
       }
 
       log.info("[createIntent] Calling merchant-service to save payment intent: {}", request.getId());
-      PaymentIntentResponse response = merchantServiceClient.createPaymentIntent(request);
-      log.info("[createIntent] Payment intent saved successfully: {}", response.getId());
+
+      //PaymentIntentResponse response = merchantServiceClient.createPaymentIntent(request);
+      paymentEventProducer.publishPaymentApproved(request);
 
       return Map.of(
-          "id", response.getId(),
-          "merchantId", response.getMerchantId(),
-          "amount", response.getAmount().toString(),
-          "currency", response.getCurrency(),
-          "status", response.getStatus(),
-          "clientSecret", response.getClientSecret(),
-          "createdAt", response.getCreatedAt().toString()
+          "status", "succes",
+            "paymentIntentId", paymentIntentId,
+              "eventPublished", "PAYMENT_APPROVED"
       );
     }).onErrorResume(error -> {
       log.error("[createIntent] Error creating payment intent", error);
