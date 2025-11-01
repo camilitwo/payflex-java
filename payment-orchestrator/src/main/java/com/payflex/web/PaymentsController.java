@@ -112,6 +112,6 @@ public class PaymentsController {
           @PathVariable String id,
           @RequestBody UpdatePaymentIntentRequest request) {
     log.info("[updatePaymentIntent] Updating payment intent: {} with data: {}", id, request);
-    return merchantServiceClient.updatePaymentIntent(id, request);
+    return Mono.fromCallable(() -> merchantServiceClient.updatePaymentIntent(id, request));
   }
 }
