@@ -63,7 +63,7 @@ public class RefundService {
                         .flatMap(validAmount -> createAndSaveWithdrawal(request, paymentIntent, validAmount))
                 )
                 .flatMap(this::mapToResponse)
-                .doOnSuccess(response -> log.info("[createRefund] Withdrawal created successfully: {}", response.getId()))
+                .doOnSuccess(response -> log.info("[createRefund] Withdrawal created successfully"))
                 .doOnError(error -> log.error("[createRefund] Error creating withdrawal", error));
     }
 
