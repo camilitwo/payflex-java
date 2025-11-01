@@ -339,8 +339,14 @@ public class MeController {
 
     return merchantQueryClient.createWithdrawal(request.getPaymentIntentId(), request, bearer)
             .map(withdrawal -> ResponseEntity.status(HttpStatus.CREATED).body(withdrawal))
-            .defaultIfEmpty(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build())
-            .doOnError(e -> log.error("[MeController] Error creando withdrawal: {}", e.getMessage(), e));
+            .switchIfEmpty(Mono.fromSupplier(() -> {
+              log.warn("[MeController] Downstream devolvió cuerpo vacío al crear withdrawal. Devolviendo 201 sin body.");
+              return ResponseEntity.status(HttpStatus.CREATED).build();
+            }))
+            .onErrorResume(e -> {
+              log.error("[MeController] Error creando withdrawal (propagación controlada): {}", e.getMessage(), e);
+              return Mono.just(ResponseEntity.status(HttpStatus.BAD_GATEWAY).build());
+            });
   }
 
   /**
