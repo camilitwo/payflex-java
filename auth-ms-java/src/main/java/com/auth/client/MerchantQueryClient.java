@@ -2,12 +2,15 @@ package com.auth.client;
 
 
 import com.auth.dto.CreatePaymentIntentRequest;
+import com.auth.dto.CreateWithdrawalRequest;
 import com.auth.dto.DashboardStatsDto;
 import com.auth.dto.MeMerchantConfigDto;
 import com.auth.dto.MeMerchantDto;
 import com.auth.dto.MeMerchantUserDto;
+import com.auth.dto.MerchantBalanceDto;
 import com.auth.dto.PaymentIntentDto;
 import com.auth.dto.TransactionListDto;
+import com.auth.dto.WithdrawalDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -127,5 +130,109 @@ public class MerchantQueryClient {
             .doOnSuccess(pi -> log.info("[MQC][SUCCESS] createPaymentIntent id={}", pi != null ? pi.getId() : "null"))
             .doOnError(e -> log.error("[MQC][ERR] createPaymentIntent merchantId={} amount={} msg={}",
                 request.getMerchantId(), request.getAmount(), e.getMessage()));
+    }
+
+    // ==================== WITHDRAWALS ====================
+
+    /**
+     * Obtener el balance disponible del merchant
+     */
+    public Mono<MerchantBalanceDto> getMerchantBalance(String merchantId, String bearer) {
+        return client.get()
+            .uri("/api/refunds/merchant/{merchantId}/balance", merchantId)
+            .accept(MediaType.APPLICATION_JSON)
+            .header(HttpHeaders.AUTHORIZATION, bearer)
+            .retrieve()
+            .bodyToMono(MerchantBalanceDto.class)
+            .timeout(Duration.ofSeconds(5))
+            .doOnError(e -> log.error("[MQC][ERR] getMerchantBalance merchantId={} msg={}", merchantId, e.getMessage()))
+            .onErrorResume(e -> Mono.empty());
+    }
+
+    /**
+     * Crear un retiro de dinero (withdrawal) desde un payment intent
+     */
+    public Mono<WithdrawalDto> createWithdrawal(String paymentIntentId, CreateWithdrawalRequest request, String bearer) {
+        return client.post()
+            .uri("/api/payment-intents/{id}/refunds", paymentIntentId)
+            .contentType(MediaType.APPLICATION_JSON)
+            .accept(MediaType.APPLICATION_JSON)
+            .header(HttpHeaders.AUTHORIZATION, bearer)
+            .bodyValue(request)
+            .retrieve()
+            .bodyToMono(WithdrawalDto.class)
+            .timeout(Duration.ofSeconds(10))
+            .doOnSuccess(wd -> log.info("[MQC][SUCCESS] createWithdrawal id={} amount={}",
+                wd != null ? wd.getId() : "null", wd != null ? wd.getAmount() : "null"))
+            .doOnError(e -> log.error("[MQC][ERR] createWithdrawal paymentIntentId={} amount={} msg={}",
+                paymentIntentId, request.getAmount(), e.getMessage()));
+    }
+
+    /**
+     * Obtener todos los retiros de un merchant
+     */
+    public Flux<WithdrawalDto> getWithdrawals(String merchantId, String bearer, String status) {
+        return client.get()
+            .uri(uriBuilder -> {
+                var builder = uriBuilder.path("/api/refunds").queryParam("merchantId", merchantId);
+                if (status != null && !status.equals("all")) {
+                    builder = builder.queryParam("status", status);
+                }
+                return builder.build();
+            })
+            .accept(MediaType.APPLICATION_JSON)
+            .header(HttpHeaders.AUTHORIZATION, bearer)
+            .retrieve()
+            .bodyToFlux(WithdrawalDto.class)
+            .timeout(Duration.ofSeconds(10))
+            .doOnError(e -> log.error("[MQC][ERR] getWithdrawals merchantId={} status={} msg={}",
+                merchantId, status, e.getMessage()))
+            .onErrorResume(e -> Flux.empty());
+    }
+
+    /**
+     * Obtener los retiros de un payment intent específico
+     */
+    public Flux<WithdrawalDto> getWithdrawalsByPaymentIntent(String paymentIntentId, String bearer) {
+        return client.get()
+            .uri("/api/payment-intents/{id}/refunds", paymentIntentId)
+            .accept(MediaType.APPLICATION_JSON)
+            .header(HttpHeaders.AUTHORIZATION, bearer)
+            .retrieve()
+            .bodyToFlux(WithdrawalDto.class)
+            .timeout(Duration.ofSeconds(5))
+            .doOnError(e -> log.error("[MQC][ERR] getWithdrawalsByPaymentIntent paymentIntentId={} msg={}",
+                paymentIntentId, e.getMessage()))
+            .onErrorResume(e -> Flux.empty());
+    }
+
+    /**
+     * Obtener un retiro específico por ID
+     */
+    public Mono<WithdrawalDto> getWithdrawal(String withdrawalId, String bearer) {
+        return client.get()
+            .uri("/api/refunds/{id}", withdrawalId)
+            .accept(MediaType.APPLICATION_JSON)
+            .header(HttpHeaders.AUTHORIZATION, bearer)
+            .retrieve()
+            .bodyToMono(WithdrawalDto.class)
+            .timeout(Duration.ofSeconds(5))
+            .doOnError(e -> log.error("[MQC][ERR] getWithdrawal withdrawalId={} msg={}", withdrawalId, e.getMessage()))
+            .onErrorResume(e -> Mono.empty());
+    }
+
+    /**
+     * Cancelar un retiro pendiente
+     */
+    public Mono<Void> cancelWithdrawal(String withdrawalId, String bearer) {
+        return client.post()
+            .uri("/api/refunds/{id}/cancel", withdrawalId)
+            .accept(MediaType.APPLICATION_JSON)
+            .header(HttpHeaders.AUTHORIZATION, bearer)
+            .retrieve()
+            .bodyToMono(Void.class)
+            .timeout(Duration.ofSeconds(5))
+            .doOnSuccess(v -> log.info("[MQC][SUCCESS] cancelWithdrawal withdrawalId={}", withdrawalId))
+            .doOnError(e -> log.error("[MQC][ERR] cancelWithdrawal withdrawalId={} msg={}", withdrawalId, e.getMessage()));
     }
 }

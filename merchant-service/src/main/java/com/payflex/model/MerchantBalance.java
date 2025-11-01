@@ -1,6 +1,8 @@
 package com.payflex.model;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
+import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 import lombok.AllArgsConstructor;
@@ -16,10 +18,15 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table("merchant_balances")
-public class MerchantBalance {
+public class MerchantBalance implements Persistable<String> {
 
     @Id
-    private Long id;
+    @Column("id")
+    private String id;
+
+    @Transient
+    @Builder.Default
+    private boolean isNew = true;
 
     @Column("merchant_id")
     private String merchantId;
@@ -30,8 +37,24 @@ public class MerchantBalance {
     @Column("pending_balance")
     private BigDecimal pendingBalance;
 
+    @Column("total_withdrawn")
+    private BigDecimal totalWithdrawn;
+
+    @Column("currency")
     private String currency;
+
+    @Column("created_at")
+    private LocalDateTime createdAt;
 
     @Column("updated_at")
     private LocalDateTime updatedAt;
+
+    @Override
+    public boolean isNew() {
+        return isNew;
+    }
+
+    public void markAsNotNew() {
+        this.isNew = false;
+    }
 }

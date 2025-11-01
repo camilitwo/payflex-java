@@ -1,10 +1,13 @@
 package com.payflex.web;
 
 import com.payflex.dto.CreatePaymentIntentRequest;
+import com.payflex.dto.CreateRefundRequest;
 import com.payflex.dto.PaymentIntentResponse;
+import com.payflex.dto.RefundResponse;
 import com.payflex.dto.TransactionListResponse;
 import com.payflex.dto.UpdatePaymentIntentRequest;
 import com.payflex.service.PaymentIntentService;
+import com.payflex.service.RefundService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -19,9 +22,11 @@ public class PaymentIntentController {
     private static final Logger log = LoggerFactory.getLogger(PaymentIntentController.class);
 
     private final PaymentIntentService paymentIntentService;
+    private final RefundService refundService;
 
-    public PaymentIntentController(PaymentIntentService paymentIntentService) {
+    public PaymentIntentController(PaymentIntentService paymentIntentService, RefundService refundService) {
         this.paymentIntentService = paymentIntentService;
+        this.refundService = refundService;
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
@@ -78,6 +83,27 @@ public class PaymentIntentController {
                 merchantId, status, page, pageSize);
 
         return paymentIntentService.getTransactionsForDashboard(merchantId, status, page, pageSize);
+    }
+
+    // Endpoint para crear un retiro de dinero desde un payment intent
+    @PostMapping(value = "/{id}/refunds", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    public Mono<RefundResponse> createWithdrawalForPaymentIntent(
+            @PathVariable String id,
+            @RequestBody CreateRefundRequest request) {
+        log.info("[createWithdrawalForPaymentIntent] Creating withdrawal for payment intent: {} with data: {}", id, request);
+
+        // Asegurarse de que el paymentIntentId esté en el request
+        request.setPaymentIntentId(id);
+
+        return refundService.createRefund(request);
+    }
+
+    // Endpoint para listar retiros de un payment intent
+    @GetMapping(value = "/{id}/refunds", produces = MediaType.APPLICATION_JSON_VALUE)
+    public Flux<RefundResponse> getWithdrawalsForPaymentIntent(@PathVariable String id) {
+        log.info("[getWithdrawalsForPaymentIntent] Fetching withdrawals for payment intent: {}", id);
+        return refundService.getRefundsByPaymentIntent(id);
     }
 }
 
