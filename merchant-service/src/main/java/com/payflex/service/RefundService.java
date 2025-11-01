@@ -118,13 +118,10 @@ public class RefundService {
      */
     private Mono<MerchantBalance> createInitialBalance(String merchantId, String currency) {
         MerchantBalance balance = MerchantBalance.builder()
-                .id("bal_" + UUID.randomUUID().toString().replace("-", ""))
                 .merchantId(merchantId)
                 .availableBalance(BigDecimal.ZERO)
                 .pendingBalance(BigDecimal.ZERO)
-                .totalWithdrawn(BigDecimal.ZERO)
                 .currency(currency)
-                .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .isNew(true)
                 .build();

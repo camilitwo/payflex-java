@@ -18,11 +18,11 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table("merchant_balances")
-public class MerchantBalance implements Persistable<String> {
+public class MerchantBalance implements Persistable<Integer> {
 
     @Id
     @Column("id")
-    private String id;
+    private Integer id;
 
     @Transient
     @Builder.Default
@@ -37,21 +37,20 @@ public class MerchantBalance implements Persistable<String> {
     @Column("pending_balance")
     private BigDecimal pendingBalance;
 
-    @Column("total_withdrawn")
-    private BigDecimal totalWithdrawn;
-
     @Column("currency")
     private String currency;
-
-    @Column("created_at")
-    private LocalDateTime createdAt;
 
     @Column("updated_at")
     private LocalDateTime updatedAt;
 
     @Override
+    public Integer getId() {
+        return id;
+    }
+
+    @Override
     public boolean isNew() {
-        return isNew;
+        return isNew || id == null;
     }
 
     public void markAsNotNew() {
