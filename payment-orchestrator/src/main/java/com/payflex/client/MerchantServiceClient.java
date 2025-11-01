@@ -2,9 +2,11 @@ package com.payflex.client;
 
 import com.payflex.dto.CreatePaymentIntentRequest;
 import com.payflex.dto.PaymentIntentResponse;
+import com.payflex.dto.UpdatePaymentIntentRequest;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 
@@ -15,12 +17,16 @@ public interface MerchantServiceClient {
     PaymentIntentResponse createPaymentIntent(@RequestBody CreatePaymentIntentRequest request);
 
     @GetMapping(value = "/api/payment-intents/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
-    PaymentIntentResponse getPaymentIntent(@PathVariable("id") String id);
+    PaymentIntentResponse getPaymentIntent(@PathVariable String id);
 
     @GetMapping(value = "/api/payment-intents", produces = MediaType.APPLICATION_JSON_VALUE)
     List<PaymentIntentResponse> getPaymentIntents(
             @RequestParam(required = false) String merchantId,
             @RequestParam(required = false) String status
     );
+
+    @PutMapping(value = "/api/payment-intents/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    Mono<PaymentIntentResponse> updatePaymentIntent(@PathVariable String id, @RequestBody UpdatePaymentIntentRequest request);
+
 }
 

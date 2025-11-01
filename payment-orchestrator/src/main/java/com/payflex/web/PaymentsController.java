@@ -3,6 +3,7 @@ package com.payflex.web;
 import com.payflex.client.MerchantServiceClient;
 import com.payflex.dto.CreatePaymentIntentRequest;
 import com.payflex.dto.PaymentIntentResponse;
+import com.payflex.dto.UpdatePaymentIntentRequest;
 import com.payflex.event.producer.PaymentEventProducer;
 import com.payflex.security.MerchantAccess;
 import org.slf4j.Logger;
@@ -104,5 +105,13 @@ public class PaymentsController {
           "status", "500"
       ));
     });
+  }
+
+  @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+  public Mono<PaymentIntentResponse> updatePaymentIntent(
+          @PathVariable String id,
+          @RequestBody UpdatePaymentIntentRequest request) {
+    log.info("[updatePaymentIntent] Updating payment intent: {} with data: {}", id, request);
+    return merchantServiceClient.updatePaymentIntent(id, request);
   }
 }
