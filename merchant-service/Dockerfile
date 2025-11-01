@@ -5,7 +5,6 @@ COPY pom.xml .
 COPY src ./src
 RUN mvn -B -DskipTests package
 
-# Etapa de runtime: usa solo el JRE y ejecuta el JAR
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
