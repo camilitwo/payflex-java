@@ -1,19 +1,24 @@
 package com.auth.web;
 
 import com.auth.client.MerchantQueryClient;
+import com.auth.dto.CreatePaymentIntentRequest;
 import com.auth.dto.DashboardStatsDto;
 import com.auth.dto.MeMerchantConfigDto;
 import com.auth.dto.MeMerchantDto;
 import com.auth.dto.MeMerchantUserDto;
+import com.auth.dto.PaymentIntentDto;
 import com.auth.dto.TransactionListDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
@@ -234,6 +239,39 @@ public class MeController {
             .map(ResponseEntity::ok)
             .defaultIfEmpty(ResponseEntity.notFound().build())
             .doOnError(e -> log.error("[MeController] Error obteniendo transacciones: {}", e.getMessage(), e));
+  }
+
+  @PostMapping(value = "/me/merchant/transactions", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+  public Mono<ResponseEntity<PaymentIntentDto>> createPaymentIntent(
+          @AuthenticationPrincipal Jwt jwt,
+          @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader,
+          @RequestBody CreatePaymentIntentRequest request) {
+
+    if (jwt == null) {
+      log.warn("[MeController] JWT no presente en /me/merchant/transactions POST");
+      return Mono.just(ResponseEntity.status(401).build());
+    }
+
+    String merchantId = extractMerchantId(jwt);
+    if (merchantId == null || merchantId.isBlank()) {
+      log.warn("[MeController] merchantId no encontrado en JWT claims para crear transaction");
+      return Mono.just(ResponseEntity.status(400).build());
+    }
+
+    // Asegurar que el merchantId del request coincide con el del JWT
+    request.setMerchantId(merchantId);
+
+    String bearer = (authHeader != null && authHeader.startsWith("Bearer "))
+            ? authHeader
+            : "Bearer " + jwt.getTokenValue();
+
+    log.info("[MeController] Creando PaymentIntent desde BFF: merchantId={}, amount={}, currency={}",
+            merchantId, request.getAmount(), request.getCurrency());
+
+    return merchantQueryClient.createPaymentIntent(request, bearer)
+            .map(paymentIntent -> ResponseEntity.status(HttpStatus.CREATED).body(paymentIntent))
+            .defaultIfEmpty(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build())
+            .doOnError(e -> log.error("[MeController] Error creando PaymentIntent: {}", e.getMessage(), e));
   }
 
   /**

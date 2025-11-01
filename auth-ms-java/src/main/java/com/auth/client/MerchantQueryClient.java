@@ -1,10 +1,12 @@
 package com.auth.client;
 
 
+import com.auth.dto.CreatePaymentIntentRequest;
 import com.auth.dto.DashboardStatsDto;
 import com.auth.dto.MeMerchantConfigDto;
 import com.auth.dto.MeMerchantDto;
 import com.auth.dto.MeMerchantUserDto;
+import com.auth.dto.PaymentIntentDto;
 import com.auth.dto.TransactionListDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -110,5 +112,20 @@ public class MerchantQueryClient {
             .doOnError(e -> log.error("[MQC][ERR] getTransactions merchantId={} status={} page={} msg={}",
                 merchantId, status, page, e.getMessage()))
             .onErrorResume(e -> Mono.empty());
+    }
+
+    public Mono<PaymentIntentDto> createPaymentIntent(CreatePaymentIntentRequest request, String bearer) {
+        return client.post()
+            .uri("/api/payment-intents")
+            .contentType(MediaType.APPLICATION_JSON)
+            .accept(MediaType.APPLICATION_JSON)
+            .header(HttpHeaders.AUTHORIZATION, bearer)
+            .bodyValue(request)
+            .retrieve()
+            .bodyToMono(PaymentIntentDto.class)
+            .timeout(Duration.ofSeconds(10))
+            .doOnSuccess(pi -> log.info("[MQC][SUCCESS] createPaymentIntent id={}", pi != null ? pi.getId() : "null"))
+            .doOnError(e -> log.error("[MQC][ERR] createPaymentIntent merchantId={} amount={} msg={}",
+                request.getMerchantId(), request.getAmount(), e.getMessage()));
     }
 }
