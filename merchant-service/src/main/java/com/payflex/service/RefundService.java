@@ -161,16 +161,16 @@ public class RefundService {
         }
 
         return refundRepository.save(refund)
-                .flatMap(savedRefund -> {
-                    savedRefund.markAsNotNew();
+                .doOnNext(savedRefund -> savedRefund.markAsNotNew())
+                .flatMap(savedRefund ->
                     // Descontar del balance disponible del merchant
-                    return merchantBalanceRepository.decrementAvailableBalance(
+                    merchantBalanceRepository.decrementAvailableBalance(
                             paymentIntent.getMerchantId(),
                             amount.doubleValue()
                     )
                     .flatMap(rowsUpdated -> {
                         if (rowsUpdated == 0) {
-                            // Si no se pudo descontar, cancelar el refund
+                            // Si no se pudo descontar, marcar el refund como failed
                             savedRefund.setStatus("failed");
                             savedRefund.setUpdatedAt(LocalDateTime.now());
                             return refundRepository.save(savedRefund)
@@ -181,8 +181,8 @@ public class RefundService {
                         savedRefund.setStatus("succeeded");
                         savedRefund.setUpdatedAt(LocalDateTime.now());
                         return refundRepository.save(savedRefund);
-                    });
-                });
+                    })
+                );
     }
 
     /**
