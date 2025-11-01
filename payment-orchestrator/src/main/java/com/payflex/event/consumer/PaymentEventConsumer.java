@@ -6,16 +6,19 @@ import com.payflex.client.MerchantServiceClient;
 import com.payflex.dto.CreatePaymentIntentRequest;
 import com.payflex.dto.PaymentIntentResponse;
 import com.payflex.utils.RedisStreams;
-import jakarta.annotation.PostConstruct;
+import io.lettuce.core.RedisCommandExecutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.stream.*;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +31,7 @@ public class PaymentEventConsumer {
     private final RedisTemplate<String, Object> redisTemplate;
     private final MerchantServiceClient merchantServiceClient;
     private final ObjectMapper objectMapper;
+    private final RedisConnectionFactory connectionFactory;
 
     @Value("${redis.stream.consumer.group:payment-consumers}")
     private String consumerGroup;
@@ -40,10 +44,12 @@ public class PaymentEventConsumer {
 
     public PaymentEventConsumer(RedisTemplate<String, Object> redisTemplate,
                                 MerchantServiceClient merchantServiceClient,
-                                ObjectMapper objectMapper) {
+                                ObjectMapper objectMapper,
+                                RedisConnectionFactory connectionFactory) {
         this.redisTemplate = redisTemplate;
         this.merchantServiceClient = merchantServiceClient;
         this.objectMapper = objectMapper;
+        this.connectionFactory = connectionFactory;
     }
 
     @PostConstruct
@@ -62,17 +68,47 @@ public class PaymentEventConsumer {
         }
     }
 
+    @SuppressWarnings("unchecked")
     @Scheduled(fixedDelayString = "${redis.stream.consumer.poll-ms:1000}")
     public void consume() {
         Consumer consumer = Consumer.from(consumerGroup, effectiveConsumerName);
 
-        // Leer 10 eventos pendientes del grupo
-        List<MapRecord<String, Object, Object>> messages =
-                redisTemplate.opsForStream().read(
+        // Intentar leer; si falla por NOGROUP intentar crear el grupo y reintentar una vez
+        List<MapRecord<String, Object, Object>> messages;
+        boolean retried = false;
+        while (true) {
+            try {
+                messages = redisTemplate.opsForStream().read(
                         consumer,
                         StreamReadOptions.empty().count(10).block(Duration.ofMillis(1000)),
                         StreamOffset.create(RedisStreams.PAYMENT_EVENTS, ReadOffset.lastConsumed())
                 );
+                break; // éxito
+            } catch (Exception e) {
+                Throwable cause = (e.getCause() != null) ? e.getCause() : e;
+                // detectar NOGROUP en excepciones de Lettuce
+                if (!retried && (cause instanceof RedisCommandExecutionException || (cause.getMessage() != null && cause.getMessage().contains("NOGROUP")))) {
+                    log.warn("Read failed due to missing group. Will attempt to create group '{}' for stream '{}', then retry. Error: {}", consumerGroup, RedisStreams.PAYMENT_EVENTS, cause.getMessage());
+                    try {
+                        byte[] streamKey = RedisStreams.PAYMENT_EVENTS.getBytes(StandardCharsets.UTF_8);
+                        try (var conn = connectionFactory.getConnection()) {
+                            // Usar ReadOffset.from("0-0") para indicar ID '0-0' al crear el grupo (evita error de ID inválido)
+                            conn.streamCommands().xGroupCreate(streamKey, consumerGroup, ReadOffset.from("0-0"), true);
+                        }
+                        retried = true;
+                        continue; // reintentar la lectura
+                    } catch (Exception ex) {
+                        log.error("Failed to create consumer group on retry: {}", ex.getMessage(), ex);
+                        // no más reintentos
+                        return;
+                    }
+                }
+
+                // otro tipo de error -> log y salir
+                log.error("Error reading from stream: {}", e.getMessage(), e);
+                return;
+            }
+        }
 
         if (messages == null || messages.isEmpty()) {
             return;
