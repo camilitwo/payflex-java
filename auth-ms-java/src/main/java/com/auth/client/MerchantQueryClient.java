@@ -5,6 +5,7 @@ import com.auth.dto.DashboardStatsDto;
 import com.auth.dto.MeMerchantConfigDto;
 import com.auth.dto.MeMerchantDto;
 import com.auth.dto.MeMerchantUserDto;
+import com.auth.dto.TransactionListDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -90,6 +91,24 @@ public class MerchantQueryClient {
             .bodyToMono(DashboardStatsDto.class)
             .timeout(Duration.ofSeconds(5))
             .doOnError(e -> log.error("[MQC][ERR] getDashboardStats id={} msg={}", merchantId, e.getMessage()))
+            .onErrorResume(e -> Mono.empty());
+    }
+
+    public Mono<TransactionListDto> getTransactions(String merchantId, String bearer, String status, int page, int pageSize) {
+        return client.get()
+            .uri(uriBuilder -> uriBuilder
+                .path("/api/payment-intents/merchant/{merchantId}/transactions")
+                .queryParam("status", status)
+                .queryParam("page", page)
+                .queryParam("pageSize", pageSize)
+                .build(merchantId))
+            .accept(MediaType.APPLICATION_JSON)
+            .header(HttpHeaders.AUTHORIZATION, bearer)
+            .retrieve()
+            .bodyToMono(TransactionListDto.class)
+            .timeout(Duration.ofSeconds(10))
+            .doOnError(e -> log.error("[MQC][ERR] getTransactions merchantId={} status={} page={} msg={}",
+                merchantId, status, page, e.getMessage()))
             .onErrorResume(e -> Mono.empty());
     }
 }

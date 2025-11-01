@@ -2,6 +2,7 @@ package com.payflex.web;
 
 import com.payflex.dto.CreatePaymentIntentRequest;
 import com.payflex.dto.PaymentIntentResponse;
+import com.payflex.dto.TransactionListResponse;
 import com.payflex.dto.UpdatePaymentIntentRequest;
 import com.payflex.service.PaymentIntentService;
 import org.slf4j.Logger;
@@ -64,5 +65,20 @@ public class PaymentIntentController {
         log.info("[cancelPaymentIntent] Canceling payment intent: {}", id);
         return paymentIntentService.cancelPaymentIntent(id);
     }
+
+    // Endpoint específico para obtener transacciones paginadas para el dashboard del frontend
+    @GetMapping(value = "/merchant/{merchantId}/transactions", produces = MediaType.APPLICATION_JSON_VALUE)
+    public Mono<TransactionListResponse> getTransactionsForDashboard(
+            @PathVariable String merchantId,
+            @RequestParam(required = false, defaultValue = "all") String status,
+            @RequestParam(required = false, defaultValue = "0") int page,
+            @RequestParam(required = false, defaultValue = "10") int pageSize) {
+
+        log.info("[getTransactionsForDashboard] Fetching transactions for merchant: {}, status: {}, page: {}, pageSize: {}",
+                merchantId, status, page, pageSize);
+
+        return paymentIntentService.getTransactionsForDashboard(merchantId, status, page, pageSize);
+    }
 }
+
 

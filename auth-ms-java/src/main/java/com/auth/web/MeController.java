@@ -5,6 +5,7 @@ import com.auth.dto.DashboardStatsDto;
 import com.auth.dto.MeMerchantConfigDto;
 import com.auth.dto.MeMerchantDto;
 import com.auth.dto.MeMerchantUserDto;
+import com.auth.dto.TransactionListDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -13,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
@@ -199,6 +201,39 @@ public class MeController {
         .map(ResponseEntity::ok)
         .defaultIfEmpty(ResponseEntity.notFound().build())
         .doOnError(e -> log.error("[MeController] Error obteniendo dashboard stats: {}", e.getMessage(), e));
+
+  }
+
+  @GetMapping(value = "/me/merchant/transactions", produces = MediaType.APPLICATION_JSON_VALUE)
+  public Mono<ResponseEntity<TransactionListDto>> getTransactions(
+          @AuthenticationPrincipal Jwt jwt,
+          @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader,
+          @RequestParam(required = false, defaultValue = "all") String status,
+          @RequestParam(required = false, defaultValue = "0") int page,
+          @RequestParam(required = false, defaultValue = "10") int pageSize) {
+
+    if (jwt == null) {
+      log.warn("[MeController] JWT no presente en /me/merchant/transactions");
+      return Mono.just(ResponseEntity.status(401).build());
+    }
+
+    String merchantId = extractMerchantId(jwt);
+    if (merchantId == null || merchantId.isBlank()) {
+      log.warn("[MeController] merchantId no encontrado en JWT claims para /transactions");
+      return Mono.just(ResponseEntity.status(400).build());
+    }
+
+    String bearer = (authHeader != null && authHeader.startsWith("Bearer "))
+            ? authHeader
+            : "Bearer " + jwt.getTokenValue();
+
+    log.info("[MeController] Obteniendo transacciones desde DB: merchantId={}, status={}, page={}, pageSize={}",
+            merchantId, status, page, pageSize);
+
+    return merchantQueryClient.getTransactions(merchantId, bearer, status, page, pageSize)
+            .map(ResponseEntity::ok)
+            .defaultIfEmpty(ResponseEntity.notFound().build())
+            .doOnError(e -> log.error("[MeController] Error obteniendo transacciones: {}", e.getMessage(), e));
   }
 
   /**

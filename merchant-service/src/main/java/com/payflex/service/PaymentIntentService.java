@@ -2,6 +2,7 @@ package com.payflex.service;
 
 import com.payflex.dto.CreatePaymentIntentRequest;
 import com.payflex.dto.PaymentIntentResponse;
+import com.payflex.dto.TransactionListResponse;
 import com.payflex.dto.UpdatePaymentIntentRequest;
 import com.payflex.model.PaymentIntent;
 import com.payflex.repository.PaymentIntentRepository;
@@ -127,6 +128,50 @@ public class PaymentIntentService {
                         .status("canceled")
                         .build())
                 .then();
+    }
+
+    public Mono<TransactionListResponse> getTransactionsForDashboard(
+            String merchantId,
+            String status,
+            int page,
+            int pageSize) {
+
+        log.info("[getTransactionsForDashboard] Fetching transactions for merchant: {}, status: {}, page: {}, pageSize: {}",
+                merchantId, status, page, pageSize);
+
+        Flux<PaymentIntent> query;
+
+        if (status != null && !status.isEmpty() && !status.equalsIgnoreCase("all")) {
+            query = paymentIntentRepository.findByMerchantIdAndStatus(merchantId, status);
+        } else {
+            query = paymentIntentRepository.findByMerchantIdOrderByCreatedAtDesc(merchantId);
+        }
+
+        return query
+                .collectList()
+                .flatMap(allTransactions -> {
+                    long totalCount = allTransactions.size();
+                    int skip = page * pageSize;
+
+                    // Paginar la lista
+                    var paginatedTransactions = allTransactions.stream()
+                            .skip(skip)
+                            .limit(pageSize)
+                            .map(this::toResponse)
+                            .toList();
+
+                    boolean hasMore = (skip + pageSize) < totalCount;
+
+                    return Mono.just(TransactionListResponse.builder()
+                            .transactions(paginatedTransactions)
+                            .totalCount(totalCount)
+                            .page(page)
+                            .pageSize(pageSize)
+                            .hasMore(hasMore)
+                            .build());
+                })
+                .doOnSuccess(response -> log.info("[getTransactionsForDashboard] Retrieved {} transactions out of {} total",
+                        response.getTransactions().size(), response.getTotalCount()));
     }
 
     private String generateClientSecret(String paymentIntentId) {
