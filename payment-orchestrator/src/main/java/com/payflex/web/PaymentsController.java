@@ -108,10 +108,10 @@ public class PaymentsController {
   }
 
   @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-  public Mono<PaymentIntentResponse> updatePaymentIntent(
+  public PaymentIntentResponse updatePaymentIntent(
           @PathVariable String id,
           @RequestBody UpdatePaymentIntentRequest request) {
     log.info("[updatePaymentIntent] Updating payment intent: {} with data: {}", id, request);
-    return Mono.fromCallable(() -> merchantServiceClient.updatePaymentIntent(id, request));
+    return  merchantServiceClient.updatePaymentIntent(id, request);
   }
 }
