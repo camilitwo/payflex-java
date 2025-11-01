@@ -16,6 +16,7 @@ public class DashboardStatsDto {
     private TransactionStats transactions;
     private IncomeStats income;
     private GrowthStats growth;
+    private OutflowStats egresos; // nuevo bloque expuesto al front
 
     @Data
     @Builder
@@ -44,5 +45,14 @@ public class DashboardStatsDto {
         private Double percentage;
         private Double percentageChange;
     }
-}
 
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class OutflowStats {
+        private BigDecimal amount;
+        private String currency;
+        private Double percentageChange;
+    }
+}

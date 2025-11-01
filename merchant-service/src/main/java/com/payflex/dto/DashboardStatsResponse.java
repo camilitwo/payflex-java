@@ -16,6 +16,7 @@ public class DashboardStatsResponse {
     private TransactionStats transactions;
     private IncomeStats income;
     private GrowthStats growth;
+    private OutflowStats egresos; // Renombrado a 'egresos' para el front
 
     @Data
     @Builder
@@ -44,5 +45,15 @@ public class DashboardStatsResponse {
         private Double percentage;
         private Double percentageChange;
     }
-}
 
+    // Datos de egresos (sumatoria de refunds succeeded)
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class OutflowStats {
+        private BigDecimal amount;
+        private String currency;
+        private Double percentageChange;
+    }
+}

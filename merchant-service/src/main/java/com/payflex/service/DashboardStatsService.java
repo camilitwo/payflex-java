@@ -2,6 +2,7 @@ package com.payflex.service;
 
 import com.payflex.dto.DashboardStatsResponse;
 import com.payflex.repository.PaymentIntentRepository;
+import com.payflex.repository.RefundRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import java.time.temporal.ChronoUnit;
 public class DashboardStatsService {
 
     private final PaymentIntentRepository paymentIntentRepository;
+    private final RefundRepository refundRepository; // nuevo repo para egresos
 
     public Mono<DashboardStatsResponse> getMerchantDashboardStats(String merchantId) {
         LocalDateTime now = LocalDateTime.now();
@@ -27,7 +29,7 @@ public class DashboardStatsService {
 
         String successStatus = "succeeded";
 
-        // Calcular estadísticas del período actual
+        // Período actual
         Mono<Long> currentTransactionCount = paymentIntentRepository
                 .countByMerchantIdAndStatusAndCreatedAtBetween(merchantId, successStatus, currentPeriodStart, now)
                 .defaultIfEmpty(0L);
@@ -36,7 +38,11 @@ public class DashboardStatsService {
                 .sumAmountByMerchantIdAndStatusAndCreatedAtBetween(merchantId, successStatus, currentPeriodStart, now)
                 .defaultIfEmpty(0L);
 
-        // Calcular estadísticas del período anterior
+        Mono<Long> currentOutflowsAmount = refundRepository
+                .sumAmountByMerchantIdAndStatusAndCreatedAtBetween(merchantId, successStatus, currentPeriodStart, now)
+                .defaultIfEmpty(0L);
+
+        // Período anterior
         Mono<Long> previousTransactionCount = paymentIntentRepository
                 .countByMerchantIdAndStatusAndCreatedAtBetween(merchantId, successStatus, previousPeriodStart, previousPeriodEnd)
                 .defaultIfEmpty(0L);
@@ -45,28 +51,43 @@ public class DashboardStatsService {
                 .sumAmountByMerchantIdAndStatusAndCreatedAtBetween(merchantId, successStatus, previousPeriodStart, previousPeriodEnd)
                 .defaultIfEmpty(0L);
 
-        // Obtener la moneda más común del merchant en el período actual
+        Mono<Long> previousOutflowsAmount = refundRepository
+                .sumAmountByMerchantIdAndStatusAndCreatedAtBetween(merchantId, successStatus, previousPeriodStart, previousPeriodEnd)
+                .defaultIfEmpty(0L);
+
+        // Moneda predominante
         Mono<String> currency = paymentIntentRepository
                 .findMostCommonCurrencyByMerchantIdAndStatusAndCreatedAtBetween(merchantId, successStatus, currentPeriodStart, now)
                 .defaultIfEmpty("CLP");
 
-        return Mono.zip(currentTransactionCount, previousTransactionCount, currentIncomeAmount, previousIncomeAmount, currency)
+        return Mono.zip(
+                        currentTransactionCount,
+                        previousTransactionCount,
+                        currentIncomeAmount,
+                        previousIncomeAmount,
+                        currentOutflowsAmount,
+                        previousOutflowsAmount,
+                        currency
+                )
                 .map(tuple -> {
                     Long currentTxCount = tuple.getT1();
                     Long previousTxCount = tuple.getT2();
                     Long currentIncome = tuple.getT3();
                     Long previousIncome = tuple.getT4();
-                    String merchantCurrency = tuple.getT5();
+                    Long currentOutflows = tuple.getT5();
+                    Long previousOutflows = tuple.getT6();
+                    String merchantCurrency = tuple.getT7();
 
-                    // Calcular porcentajes de cambio
+                    // Porcentajes
                     Double transactionPercentageChange = calculatePercentageChange(previousTxCount, currentTxCount);
                     Double incomePercentageChange = calculatePercentageChange(previousIncome, currentIncome);
+                    Double outflowsPercentageChange = calculatePercentageChange(previousOutflows, currentOutflows);
 
-                    // Calcular tasa de crecimiento general (promedio de transacciones e ingresos)
+                    // Tasa de crecimiento general (promedio ponderado)
                     Double growthPercentage = calculateGrowthRate(transactionPercentageChange, incomePercentageChange);
                     Double growthChange = calculatePercentageChange(
-                        previousIncome.doubleValue(),
-                        currentIncome.doubleValue()
+                            previousIncome.doubleValue(),
+                            currentIncome.doubleValue()
                     );
 
                     return DashboardStatsResponse.builder()
@@ -78,6 +99,11 @@ public class DashboardStatsService {
                                     .amount(formatAmount(currentIncome, merchantCurrency))
                                     .currency(merchantCurrency)
                                     .percentageChange(incomePercentageChange)
+                                    .build())
+                            .egresos(DashboardStatsResponse.OutflowStats.builder()
+                                    .amount(formatAmount(currentOutflows, merchantCurrency))
+                                    .currency(merchantCurrency)
+                                    .percentageChange(outflowsPercentageChange)
                                     .build())
                             .growth(DashboardStatsResponse.GrowthStats.builder()
                                     .percentage(growthPercentage)
@@ -141,4 +167,3 @@ public class DashboardStatsService {
         }
     }
 }
-
