@@ -108,10 +108,12 @@ public class PaymentsController {
   }
 
   @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-  public PaymentIntentResponse updatePaymentIntent(
+  public Mono<PaymentIntentResponse> updatePaymentIntent(
           @PathVariable String id,
           @RequestBody UpdatePaymentIntentRequest request) {
     log.info("[updatePaymentIntent] Updating payment intent: {} with data: {}", id, request);
-    return  merchantServiceClient.updatePaymentIntent(id, request);
+    return Mono.fromCallable(() -> merchantServiceClient.updatePaymentIntent(id, request))
+            .doOnSuccess(response -> log.info("[updatePaymentIntent] Successfully updated payment intent: {}", id))
+            .doOnError(error -> log.error("[updatePaymentIntent] Error updating payment intent: {}", id, error));
   }
 }

@@ -26,7 +26,7 @@ public interface MerchantServiceClient {
     );
 
     @PutMapping(value = "/api/payment-intents/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    Mono<PaymentIntentResponse> updatePaymentIntent(@PathVariable String id, @RequestBody UpdatePaymentIntentRequest request);
+    PaymentIntentResponse updatePaymentIntent(@PathVariable String id, @RequestBody UpdatePaymentIntentRequest request);
 
 }
 
