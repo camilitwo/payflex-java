@@ -256,7 +256,6 @@ public class MeController {
       return Mono.just(ResponseEntity.status(400).build());
     }
 
-    // Asegurar que el merchantId del request coincide con el del JWT
     request.setMerchantId(merchantId);
 
     String bearer = (authHeader != null && authHeader.startsWith("Bearer "))
