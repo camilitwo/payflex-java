@@ -37,7 +37,7 @@ public class PaymentIntentService {
                 .customerId(request.getCustomerId())
                 .amount(request.getAmount())
                 .currency(request.getCurrency() != null ? request.getCurrency() : "CLP")
-                .status(request.getStatus() != null ? request.getStatus() : "requires_payment_method")
+                .status(request.getStatus() != null ? request.getStatus() : "succeeded")
                 .captureMethod(request.getCaptureMethod() != null ? request.getCaptureMethod() : "automatic")
                 .confirmationMethod(request.getConfirmationMethod() != null ? request.getConfirmationMethod() : "automatic")
                 .description(request.getDescription())
