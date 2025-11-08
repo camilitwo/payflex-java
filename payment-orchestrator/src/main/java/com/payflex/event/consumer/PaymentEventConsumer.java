@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.payflex.client.MerchantServiceClient;
 import com.payflex.dto.CreatePaymentIntentRequest;
 import com.payflex.dto.PaymentIntentResponse;
+import com.payflex.dto.UpdatePaymentIntentRequest;
 import com.payflex.utils.RedisStreams;
 import io.lettuce.core.RedisCommandExecutionException;
 import org.slf4j.Logger;
@@ -17,12 +18,16 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class PaymentEventConsumer {
@@ -32,12 +37,16 @@ public class PaymentEventConsumer {
     private final MerchantServiceClient merchantServiceClient;
     private final ObjectMapper objectMapper;
     private final RedisConnectionFactory connectionFactory;
+    private final ScheduledExecutorService scheduler;
 
     @Value("${redis.stream.consumer.group:payment-consumers}")
     private String consumerGroup;
 
     @Value("${redis.stream.consumer.name:}")
     private String consumerName;
+
+    @Value("${payment.processing.delay-seconds:10}")
+    private int processingDelaySeconds;
 
     // Nombre resolvido una sola vez
     private String effectiveConsumerName;
@@ -50,12 +59,27 @@ public class PaymentEventConsumer {
         this.merchantServiceClient = merchantServiceClient;
         this.objectMapper = objectMapper;
         this.connectionFactory = connectionFactory;
+        this.scheduler = Executors.newScheduledThreadPool(5);
     }
 
     @PostConstruct
     private void initConsumerName() {
         this.effectiveConsumerName = resolveConsumerName();
         log.info("Using consumer group='{}' consumerName='{}'", consumerGroup, effectiveConsumerName);
+    }
+
+    @PreDestroy
+    private void shutdownScheduler() {
+        log.info("Shutting down payment processing scheduler...");
+        scheduler.shutdown();
+        try {
+            if (!scheduler.awaitTermination(30, TimeUnit.SECONDS)) {
+                scheduler.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     private String resolveConsumerName() {
@@ -154,11 +178,17 @@ public class PaymentEventConsumer {
 
                 CreatePaymentIntentRequest request = objectMapper.readValue(payloadJson, CreatePaymentIntentRequest.class);
 
+                // Establecer el estado inicial como "processing"
+                request.setStatus("processing");
+
                 // Llamar al merchant service para crear/inserir en la base de datos via su endpoint
                 PaymentIntentResponse response = merchantServiceClient.createPaymentIntent(request);
 
                 // loguear la respuesta y cualquier acción adicional
                 log.info("Created payment intent via merchant service. id={}, status={}", response.getId(), response.getStatus());
+
+                // Programar la actualización a "succeeded" después de processingDelaySeconds
+                schedulePaymentSuccessUpdate(response.getId());
 
                 // Aquí podrías guardar una auditoría local o desencadenar otros procesos
 
@@ -171,5 +201,28 @@ public class PaymentEventConsumer {
                 throw new RuntimeException("Error calling merchant service", e);
             }
         }
+    }
+
+    private void schedulePaymentSuccessUpdate(String paymentIntentId) {
+        scheduler.schedule(() -> {
+            try {
+                log.info("Updating payment intent {} to 'succeeded' after {} seconds",
+                        paymentIntentId, processingDelaySeconds);
+
+                UpdatePaymentIntentRequest updateRequest = UpdatePaymentIntentRequest.builder()
+                        .status("succeeded")
+                        .build();
+
+                PaymentIntentResponse updatedResponse = merchantServiceClient.updatePaymentIntent(
+                        paymentIntentId, updateRequest);
+
+                log.info("Payment intent {} successfully updated to status: {}",
+                        paymentIntentId, updatedResponse.getStatus());
+
+            } catch (Exception e) {
+                log.error("Error updating payment intent {} to succeeded: {}",
+                        paymentIntentId, e.getMessage(), e);
+            }
+        }, processingDelaySeconds, TimeUnit.SECONDS);
     }
 }
