@@ -258,6 +258,7 @@ public class MeController {
 
     request.setMerchantId(merchantId);
 
+
     String bearer = (authHeader != null && authHeader.startsWith("Bearer "))
             ? authHeader
             : "Bearer " + jwt.getTokenValue();
