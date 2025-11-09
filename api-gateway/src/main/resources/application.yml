@@ -21,6 +21,20 @@ spring:
             - Method=GET,POST
           filters:
             - StripPrefix=0
+        - id: flow-payment-route
+          uri: lb://auth-ms-java
+          predicates:
+            - Path=/api/flow/**
+            - Method=GET,POST
+          filters:
+            - StripPrefix=0
+        - id: payment-intents-route
+          uri: lb://merchant-service
+          predicates:
+            - Path=/api/payment-intents/**
+            - Method=GET,POST,PUT,DELETE
+          filters:
+            - StripPrefix=0
         - id: actuator-merchant
           uri: lb://merchant-service
           predicates:
