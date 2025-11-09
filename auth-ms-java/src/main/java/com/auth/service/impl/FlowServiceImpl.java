@@ -83,7 +83,7 @@ public class FlowServiceImpl implements FlowService {
             return Mono.error(new IllegalStateException("Configuración faltante: FLOW_SECRET_KEY"));
         }
 
-        log.debug("[FlowService] Credenciales Flow cargadas apiKey.len={} secretKey.len={} apiKey.prefix={}",
+        log.info("[FlowService] Credenciales Flow cargadas apiKey.len={} secretKey.len={} apiKey.prefix={}",
                 effectiveApiKey.length(), effectiveSecretKey.length(), effectiveApiKey.substring(0, Math.min(4, effectiveApiKey.length())));
 
         // Crear PaymentIntent en el sistema con merchantId del JWT

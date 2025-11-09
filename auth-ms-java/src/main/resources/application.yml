@@ -42,7 +42,7 @@ flow:
   base-url: https://sandbox.flow.cl/api
   api-key: ${FLOW_API_KEY}
   secret-key: ${FLOW_SECRET_KEY}
-  public-url: https://api-gateway-production-b0fb.up.railway.app
+  public-url: https://demo-payflex.vercel.app
 
 pocketbase:
   url: ${POCKETBASE_URL:http://localhost:8090}
