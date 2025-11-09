@@ -3,19 +3,18 @@ package com.auth.service.impl;
 import com.auth.client.MerchantQueryClient;
 import com.auth.dto.CreatePaymentIntentRequest;
 import com.auth.dto.PaymentDTO;
-import com.auth.dto.PaymentIntentDto;
 import com.auth.dto.PaymentStatus;
 import com.auth.service.FlowService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Service;
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -61,168 +60,186 @@ public class FlowServiceImpl implements FlowService {
     }
 
     @Override
-    public String createPayment(String merchantId, String email, Long amount, String subject) {
-        try {
-            String commerceOrder = UUID.randomUUID().toString();
+    public Mono<String> createPayment(String merchantId, String email, Long amount, String subject) {
+        String commerceOrder = UUID.randomUUID().toString();
 
-            log.info("[FlowService] Iniciando pago - merchantId={}, email={}, amount={}, subject={}",
-                    merchantId, email, amount, subject);
+        log.info("[FlowService] Iniciando pago - merchantId={}, email={}, amount={}, subject={}",
+                merchantId, email, amount, subject);
 
-            // Crear PaymentIntent en el sistema con merchantId del JWT
-            CreatePaymentIntentRequest piRequest = CreatePaymentIntentRequest.builder()
-                    .merchantId(merchantId)
-                    .amount(BigDecimal.valueOf(amount))
-                    .currency("CLP")
-                    .description(subject)
-                    .statementDescriptor(subject)
-                    .build();
+        // Crear PaymentIntent en el sistema con merchantId del JWT
+        CreatePaymentIntentRequest piRequest = CreatePaymentIntentRequest.builder()
+                .merchantId(merchantId)
+                .amount(BigDecimal.valueOf(amount))
+                .currency("CLP")
+                .description(subject)
+                .statementDescriptor(subject)
+                .build();
 
-            // Crear el payment intent y esperar el resultado
-            PaymentIntentDto paymentIntent = merchantQueryClient
-                    .createPaymentIntent(piRequest, "")
-                    .block();
+        // Crear el payment intent de forma reactiva
+        return merchantQueryClient
+                .createPaymentIntent(piRequest, "")
+                .flatMap(paymentIntent -> {
+                    if (paymentIntent == null || paymentIntent.getId() == null) {
+                        return Mono.error(new IllegalStateException("No se pudo crear el PaymentIntent"));
+                    }
 
-            if (paymentIntent == null || paymentIntent.getId() == null) {
-                throw new IllegalStateException("No se pudo crear el PaymentIntent");
-            }
+                    log.info("[FlowService] PaymentIntent creado - id={}, merchantId={}",
+                            paymentIntent.getId(), merchantId);
 
-            log.info("[FlowService] PaymentIntent creado - id={}, merchantId={}",
-                    paymentIntent.getId(), merchantId);
+                    // Crear entidad de pago local
+                    PaymentDTO entity = new PaymentDTO();
+                    entity.setCommerceOrder(commerceOrder);
+                    entity.setEmail(email);
+                    entity.setAmount(amount);
+                    entity.setSubject(subject);
+                    entity.setStatus(PaymentStatus.CREATED);
 
-            // Crear entidad de pago local
-            PaymentDTO entity = new PaymentDTO();
-            entity.setCommerceOrder(commerceOrder);
-            entity.setEmail(email);
-            entity.setAmount(amount);
-            entity.setSubject(subject);
-            entity.setStatus(PaymentStatus.CREATED);
+                    // Guardar en Redis de forma reactiva
+                    String paymentKey = PAYMENT_KEY_PREFIX + commerceOrder;
+                    return Mono.fromRunnable(() ->
+                        paymentRedisTemplate.opsForValue().set(paymentKey, entity, PAYMENT_EXPIRATION_HOURS, TimeUnit.HOURS)
+                    ).thenReturn(entity);
+                })
+                .flatMap(entity -> {
+                    // Crear el pago en Flow
+                    Map<String, String> params = Map.ofEntries(
+                            Map.entry("apiKey", apiKey),
+                            Map.entry("commerceOrder", commerceOrder),
+                            Map.entry("urlConfirmation", publicUrl + "/api/flow/confirmation"),
+                            Map.entry("urlReturn", publicUrl + "/flow/return"),
+                            Map.entry("email", email),
+                            Map.entry("subject", subject),
+                            Map.entry("amount", amount.toString()),
+                            Map.entry("currency", "CLP")
+                    );
 
-            // Guardar en Redis con expiración
-            String paymentKey = PAYMENT_KEY_PREFIX + commerceOrder;
-            paymentRedisTemplate.opsForValue().set(paymentKey, entity, PAYMENT_EXPIRATION_HOURS, TimeUnit.HOURS);
+                    String signature;
+                    try {
+                        signature = signParams(params, secretKey);
+                    } catch (Exception e) {
+                        return Mono.error(new RuntimeException("Error generando firma", e));
+                    }
 
-            // Crear el pago en Flow
-            Map<String, String> params = Map.ofEntries(
-                    Map.entry("apiKey", apiKey),
-                    Map.entry("commerceOrder", commerceOrder),
-                    Map.entry("urlConfirmation", publicUrl + "/api/flow/confirmation"),
-                    Map.entry("urlReturn", publicUrl + "/flow/return"),
-                    Map.entry("email", email),
-                    Map.entry("subject", subject),
-                    Map.entry("amount", amount.toString()),
-                    Map.entry("currency", "CLP")
-            );
+                    MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
+                    params.forEach(formData::add);
+                    formData.add("s", signature);
 
-            String signature = signParams(params, secretKey);
+                    return flowWebClient.post()
+                            .uri("/payment/create")
+                            .bodyValue(formData)
+                            .retrieve()
+                            .bodyToMono(Map.class)
+                            .flatMap(response -> {
+                                if (response == null || !response.containsKey("url") || !response.containsKey("token")) {
+                                    return Mono.error(new IllegalStateException("Respuesta inválida de Flow"));
+                                }
 
-            MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
-            params.forEach(formData::add);
-            formData.add("s", signature);
+                                String url = (String) response.get("url");
+                                String token = (String) response.get("token");
 
-            var response = flowWebClient.post()
-                    .uri("/payment/create")
-                    .bodyValue(formData)
-                    .retrieve()
-                    .bodyToMono(Map.class)
-                    .block();
+                                // Actualizar entidad con token de Flow
+                                entity.setStatus(PaymentStatus.PENDING);
+                                String paymentKey = PAYMENT_KEY_PREFIX + commerceOrder;
+                                String tokenKey = TOKEN_KEY_PREFIX + token;
 
-            if (response == null || !response.containsKey("url") || !response.containsKey("token")) {
-                throw new IllegalStateException("Respuesta inválida de Flow");
-            }
-
-            String url = (String) response.get("url");
-            String token = (String) response.get("token");
-
-            // Actualizar entidad con token de Flow
-            entity.setStatus(PaymentStatus.PENDING);
-            paymentRedisTemplate.opsForValue().set(paymentKey, entity, PAYMENT_EXPIRATION_HOURS, TimeUnit.HOURS);
-
-            // Mapear token a commerceOrder en Redis
-            String tokenKey = TOKEN_KEY_PREFIX + token;
-            stringRedisTemplate.opsForValue().set(tokenKey, commerceOrder, PAYMENT_EXPIRATION_HOURS, TimeUnit.HOURS);
-
-            log.info("[FlowService] Pago creado exitosamente - commerceOrder={}, flowToken={}, merchantId={}",
-                    commerceOrder, token, merchantId);
-
-            return url + "?token=" + token;
-        } catch (Exception e) {
-            log.error("[FlowService] Error creando pago en Flow", e);
-            throw new RuntimeException("Error creando pago en Flow", e);
-        }
+                                return Mono.fromRunnable(() -> {
+                                    paymentRedisTemplate.opsForValue().set(paymentKey, entity, PAYMENT_EXPIRATION_HOURS, TimeUnit.HOURS);
+                                    stringRedisTemplate.opsForValue().set(tokenKey, commerceOrder, PAYMENT_EXPIRATION_HOURS, TimeUnit.HOURS);
+                                }).thenReturn(url + "?token=" + token);
+                            });
+                })
+                .doOnSuccess(flowUrl ->
+                    log.info("[FlowService] Pago creado exitosamente - commerceOrder={}, merchantId={}",
+                            commerceOrder, merchantId)
+                )
+                .doOnError(e ->
+                    log.error("[FlowService] Error creando pago en Flow", e)
+                );
     }
 
     @Override
-    public PaymentDTO handleConfirmation(String token) throws Exception {
+    public Mono<PaymentDTO> handleConfirmation(String token) {
         log.info("[FlowService] Procesando confirmación - token={}", token);
 
-        // Buscar orden por token en Redis
         String tokenKey = TOKEN_KEY_PREFIX + token;
-        String commerceOrder = stringRedisTemplate.opsForValue().get(tokenKey);
 
-        if (commerceOrder == null) {
-            throw new IllegalArgumentException("Token Flow no encontrado");
-        }
+        return Mono.fromCallable(() -> stringRedisTemplate.opsForValue().get(tokenKey))
+                .flatMap(commerceOrder -> {
+                    if (commerceOrder == null) {
+                        return Mono.error(new IllegalArgumentException("Token Flow no encontrado"));
+                    }
 
-        String paymentKey = PAYMENT_KEY_PREFIX + commerceOrder;
-        PaymentDTO entity = paymentRedisTemplate.opsForValue().get(paymentKey);
+                    String paymentKey = PAYMENT_KEY_PREFIX + commerceOrder;
 
-        if (entity == null) {
-            throw new IllegalArgumentException("Orden no encontrada");
-        }
+                    return Mono.fromCallable(() -> paymentRedisTemplate.opsForValue().get(paymentKey))
+                            .flatMap(entity -> {
+                                if (entity == null) {
+                                    return Mono.error(new IllegalArgumentException("Orden no encontrada"));
+                                }
 
-        Map<String, String> params = Map.of(
-                "apiKey", apiKey,
-                "token", token
-        );
-        String signature = signParams(params, secretKey);
+                                Map<String, String> params = Map.of(
+                                        "apiKey", apiKey,
+                                        "token", token
+                                );
 
-        String query = params.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .map(e -> e.getKey() + "=" + e.getValue())
-                .collect(Collectors.joining("&")) + "&s=" + signature;
+                                String signature;
+                                try {
+                                    signature = signParams(params, secretKey);
+                                } catch (Exception e) {
+                                    return Mono.error(new RuntimeException("Error generando firma", e));
+                                }
 
-        Map<String, Object> response = flowWebClient.get()
-                .uri("/payment/getStatus?" + query)
-                .retrieve()
-                .bodyToMono(Map.class)
-                .block();
+                                String query = params.entrySet().stream()
+                                        .sorted(Map.Entry.comparingByKey())
+                                        .map(e -> e.getKey() + "=" + e.getValue())
+                                        .collect(Collectors.joining("&")) + "&s=" + signature;
 
-        if (response == null) {
-            throw new IllegalStateException("No se pudo obtener el estado del pago desde Flow");
-        }
+                                return flowWebClient.get()
+                                        .uri("/payment/getStatus?" + query)
+                                        .retrieve()
+                                        .bodyToMono(Map.class)
+                                        .flatMap(response -> {
+                                            if (response == null) {
+                                                return Mono.error(new IllegalStateException("No se pudo obtener el estado del pago desde Flow"));
+                                            }
 
-        // Flow responde con status numérico:
-        // 1: pendiente, 2: pagada, 3: rechazada, 4: anulada
-        Integer flowStatus = (Integer) response.get("status");
+                                            Integer flowStatus = (Integer) response.get("status");
 
-        PaymentStatus newStatus = switch (flowStatus) {
-            case 2 -> PaymentStatus.PAID;
-            case 3 -> PaymentStatus.REJECTED;
-            case 4 -> PaymentStatus.CANCELED;
-            default -> PaymentStatus.PENDING;
-        };
+                                            PaymentStatus newStatus = switch (flowStatus) {
+                                                case 2 -> PaymentStatus.PAID;
+                                                case 3 -> PaymentStatus.REJECTED;
+                                                case 4 -> PaymentStatus.CANCELED;
+                                                default -> PaymentStatus.PENDING;
+                                            };
 
-        entity.setStatus(newStatus);
-        paymentRedisTemplate.opsForValue().set(paymentKey, entity, PAYMENT_EXPIRATION_HOURS, TimeUnit.HOURS);
+                                            entity.setStatus(newStatus);
 
-        log.info("[FlowService] Confirmación procesada - commerceOrder={}, newStatus={}", commerceOrder, newStatus);
-
-        return entity;
+                                            return Mono.fromRunnable(() ->
+                                                paymentRedisTemplate.opsForValue().set(paymentKey, entity, PAYMENT_EXPIRATION_HOURS, TimeUnit.HOURS)
+                                            ).thenReturn(entity);
+                                        })
+                                        .doOnSuccess(updatedEntity ->
+                                            log.info("[FlowService] Confirmación procesada - commerceOrder={}, newStatus={}",
+                                                    commerceOrder, updatedEntity.getStatus())
+                                        );
+                            });
+                });
     }
 
     @Override
-    public PaymentDTO getPayment(String commerceOrder) {
+    public Mono<PaymentDTO> getPayment(String commerceOrder) {
         String paymentKey = PAYMENT_KEY_PREFIX + commerceOrder;
-        PaymentDTO payment = paymentRedisTemplate.opsForValue().get(paymentKey);
 
-        if (payment == null) {
-            throw new IllegalArgumentException("Orden no encontrada");
-        }
-        return payment;
+        return Mono.fromCallable(() -> paymentRedisTemplate.opsForValue().get(paymentKey))
+                .flatMap(payment -> {
+                    if (payment == null) {
+                        return Mono.error(new IllegalArgumentException("Orden no encontrada"));
+                    }
+                    return Mono.just(payment);
+                });
     }
 
     private String signParams(Map<String, String> params, String secretKey) throws Exception {
-        // Ordena keys alfabéticamente y concatena key+value
         String data = params.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .map(e -> e.getKey() + e.getValue())
@@ -243,3 +260,4 @@ public class FlowServiceImpl implements FlowService {
         return hexString.toString();
     }
 }
+

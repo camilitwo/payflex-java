@@ -1,14 +1,12 @@
 package com.auth.service;
 
 import com.auth.dto.PaymentDTO;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
+import reactor.core.publisher.Mono;
 
 public interface FlowService {
-    String createPayment(String merchantId, @Email String email, @Min(1) Long amount, @NotBlank String subject);
+    Mono<String> createPayment(String merchantId, String email, Long amount, String subject);
 
-    PaymentDTO handleConfirmation(String token) throws Exception;
+    Mono<PaymentDTO> handleConfirmation(String token);
 
-    PaymentDTO getPayment(String commerceOrder);
+    Mono<PaymentDTO> getPayment(String commerceOrder);
 }

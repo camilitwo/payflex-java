@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/api/flow")
@@ -23,7 +24,7 @@ public class PaymentController {
 
     // 1) Front llama aquí para iniciar pago - Acepta JSON y form-urlencoded
     @PostMapping("/checkout")
-    public ResponseEntity<?> createPayment(
+    public Mono<ResponseEntity<?>> createPayment(
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) String email,
             @RequestParam(required = false) Long amount,
@@ -38,8 +39,8 @@ public class PaymentController {
 
         // Si no hay merchantId en el JWT, usar un valor por defecto o rechazar
         if (merchantId == null || merchantId.isBlank()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new ErrorResponse("No se pudo identificar el merchant. JWT inválido o ausente."));
+            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .<Object>body(new ErrorResponse("No se pudo identificar el merchant. JWT inválido o ausente.")));
         }
 
         // Priorizar JSON si viene en el body
@@ -52,25 +53,25 @@ public class PaymentController {
 
         // Validación manual simple
         if (finalEmail == null || finalEmail.isBlank()) {
-            return ResponseEntity.badRequest().body(new ErrorResponse("Email es requerido"));
+            return Mono.just(ResponseEntity.badRequest().<Object>body(new ErrorResponse("Email es requerido")));
         }
         if (finalAmount == null || finalAmount < 1) {
-            return ResponseEntity.badRequest().body(new ErrorResponse("El monto debe ser mayor a 0"));
+            return Mono.just(ResponseEntity.badRequest().<Object>body(new ErrorResponse("El monto debe ser mayor a 0")));
         }
         if (finalSubject == null || finalSubject.isBlank()) {
-            return ResponseEntity.badRequest().body(new ErrorResponse("El asunto es requerido"));
+            return Mono.just(ResponseEntity.badRequest().<Object>body(new ErrorResponse("El asunto es requerido")));
         }
         if (!finalEmail.matches("^[A-Za-z0-9+_.-]+@(.+)$")) {
-            return ResponseEntity.badRequest().body(new ErrorResponse("Email inválido"));
+            return Mono.just(ResponseEntity.badRequest().<Object>body(new ErrorResponse("Email inválido")));
         }
 
-        try {
-            String flowUrl = flowService.createPayment(merchantId, finalEmail, finalAmount, finalSubject);
-            return ResponseEntity.ok().body(new CreatePaymentResponse(flowUrl));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ErrorResponse("Error creando el pago: " + e.getMessage()));
-        }
+        // Llamar al servicio de forma reactiva
+        return flowService.createPayment(merchantId, finalEmail, finalAmount, finalSubject)
+                .<ResponseEntity<?>>map(flowUrl -> ResponseEntity.ok().body(new CreatePaymentResponse(flowUrl)))
+                .onErrorResume(e -> Mono.just(
+                        ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .body(new ErrorResponse("Error creando el pago: " + e.getMessage()))
+                ));
     }
 
     // DTOs
@@ -85,17 +86,18 @@ public class PaymentController {
 
     // 2) Webhook llamado por Flow (urlConfirmation)
     @PostMapping("/confirmation")
-    public ResponseEntity<String> confirmation(@RequestParam("token") String token) throws Exception {
-        flowService.handleConfirmation(token);
-        // Flow solo necesita 200 OK
-        return ResponseEntity.ok("OK");
+    public Mono<ResponseEntity<String>> confirmation(@RequestParam("token") String token) {
+        return flowService.handleConfirmation(token)
+                .map(payment -> ResponseEntity.ok("OK"))
+                .onErrorResume(e -> Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Error: " + e.getMessage())));
     }
 
     // 3) Endpoint para que el front consulte estado de orden
     @GetMapping("/status/{commerceOrder}")
-    public ResponseEntity<PaymentDTO> getStatus(@PathVariable String commerceOrder) {
-        PaymentDTO payment = flowService.getPayment(commerceOrder);
-        return ResponseEntity.ok(payment);
+    public Mono<ResponseEntity<PaymentDTO>> getStatus(@PathVariable String commerceOrder) {
+        return flowService.getPayment(commerceOrder)
+                .map(ResponseEntity::ok)
+                .onErrorResume(e -> Mono.just(ResponseEntity.notFound().build()));
     }
 
     // DTO simple para respuesta
