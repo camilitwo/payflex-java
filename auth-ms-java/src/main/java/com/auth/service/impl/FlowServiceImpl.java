@@ -10,9 +10,13 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.reactive.function.BodyInserters;
+import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
@@ -120,14 +124,27 @@ public class FlowServiceImpl implements FlowService {
                         return Mono.error(new RuntimeException("Error generando firma", e));
                     }
 
+                    log.debug("[FlowService] Params enviados a Flow: {}", params);
+                    log.debug("[FlowService] Firma s={}", signature);
+
                     MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
                     params.forEach(formData::add);
                     formData.add("s", signature);
 
+
+
                     return flowWebClient.post()
                             .uri("/payment/create")
-                            .bodyValue(formData)
+                            .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                            .body(BodyInserters.fromFormData(formData))
                             .retrieve()
+                            .onStatus(HttpStatusCode::isError, (ClientResponse resp) ->
+                                    resp.bodyToMono(String.class).flatMap(body -> {
+                                        log.error("[FlowService] Error HTTP {} en payment/create. Body: {}",
+                                                resp.statusCode(), body);
+                                        return Mono.error(new RuntimeException("Error Flow: " + resp.statusCode()));
+                                    })
+                            )
                             .bodyToMono(Map.class)
                             .flatMap(response -> {
                                 if (response == null || !response.containsKey("url") || !response.containsKey("token")) {
