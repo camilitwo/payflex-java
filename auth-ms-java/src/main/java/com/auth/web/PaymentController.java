@@ -3,9 +3,8 @@ package com.auth.web;
 
 import com.auth.dto.PaymentDTO;
 import com.auth.service.FlowService;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,22 +18,59 @@ public class PaymentController {
         this.flowService = flowService;
     }
 
-    // 1) Front llama aquí para iniciar pago
+    // 1) Front llama aquí para iniciar pago - Acepta JSON y form-urlencoded
     @PostMapping("/checkout")
-    public ResponseEntity<?> createPayment(@RequestParam @Email String email,
-                                           @RequestParam @Min(1) Long amount,
-                                           @RequestParam @NotBlank String subject) {
+    public ResponseEntity<?> createPayment(
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) Long amount,
+            @RequestParam(required = false) String subject,
+            @RequestBody(required = false) CreatePaymentRequest jsonRequest) {
 
-        String flowUrl = flowService.createPayment(email, amount, subject);
-        return ResponseEntity.ok().body(
-                new CreatePaymentResponse(flowUrl)
-        );
+        // Priorizar JSON si viene en el body
+        String finalEmail = (jsonRequest != null && jsonRequest.getEmail() != null)
+                ? jsonRequest.getEmail() : email;
+        Long finalAmount = (jsonRequest != null && jsonRequest.getAmount() != null)
+                ? jsonRequest.getAmount() : amount;
+        String finalSubject = (jsonRequest != null && jsonRequest.getSubject() != null)
+                ? jsonRequest.getSubject() : subject;
+
+        // Validación manual simple
+        if (finalEmail == null || finalEmail.isBlank()) {
+            return ResponseEntity.badRequest().body(new ErrorResponse("Email es requerido"));
+        }
+        if (finalAmount == null || finalAmount < 1) {
+            return ResponseEntity.badRequest().body(new ErrorResponse("El monto debe ser mayor a 0"));
+        }
+        if (finalSubject == null || finalSubject.isBlank()) {
+            return ResponseEntity.badRequest().body(new ErrorResponse("El asunto es requerido"));
+        }
+        if (!finalEmail.matches("^[A-Za-z0-9+_.-]+@(.+)$")) {
+            return ResponseEntity.badRequest().body(new ErrorResponse("Email inválido"));
+        }
+
+        try {
+            String flowUrl = flowService.createPayment(finalEmail, finalAmount, finalSubject);
+            return ResponseEntity.ok().body(new CreatePaymentResponse(flowUrl));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Error creando el pago: " + e.getMessage()));
+        }
     }
+
+    // DTOs
+    @Data
+    public static class CreatePaymentRequest {
+        private String email;
+        private Long amount;
+        private String subject;
+    }
+
+    public record ErrorResponse(String error) {}
 
     // 2) Webhook llamado por Flow (urlConfirmation)
     @PostMapping("/confirmation")
     public ResponseEntity<String> confirmation(@RequestParam("token") String token) throws Exception {
-        PaymentDTO payment = flowService.handleConfirmation(token);
+        flowService.handleConfirmation(token);
         // Flow solo necesita 200 OK
         return ResponseEntity.ok("OK");
     }
