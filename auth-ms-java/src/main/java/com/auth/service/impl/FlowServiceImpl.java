@@ -70,6 +70,22 @@ public class FlowServiceImpl implements FlowService {
         log.info("[FlowService] Iniciando pago - merchantId={}, email={}, amount={}, subject={}",
                 merchantId, email, amount, subject);
 
+        // Fallback y validación de credenciales Flow
+        String effectiveApiKey = (apiKey == null || apiKey.isBlank()) ? System.getenv("FLOW_API_KEY") : apiKey;
+        String effectiveSecretKey = (secretKey == null || secretKey.isBlank()) ? System.getenv("FLOW_SECRET_KEY") : secretKey;
+
+        if (effectiveApiKey == null || effectiveApiKey.isBlank()) {
+            log.error("[FlowService] FLOW_API_KEY no configurado (ni en application.yml ni en env). Aborting createPayment.");
+            return Mono.error(new IllegalStateException("Configuración faltante: FLOW_API_KEY"));
+        }
+        if (effectiveSecretKey == null || effectiveSecretKey.isBlank()) {
+            log.error("[FlowService] FLOW_SECRET_KEY no configurado (ni en application.yml ni en env). Aborting createPayment.");
+            return Mono.error(new IllegalStateException("Configuración faltante: FLOW_SECRET_KEY"));
+        }
+
+        log.debug("[FlowService] Credenciales Flow cargadas apiKey.len={} secretKey.len={} apiKey.prefix={}",
+                effectiveApiKey.length(), effectiveSecretKey.length(), effectiveApiKey.substring(0, Math.min(4, effectiveApiKey.length())));
+
         // Crear PaymentIntent en el sistema con merchantId del JWT
         CreatePaymentIntentRequest piRequest = CreatePaymentIntentRequest.builder()
                 .merchantId(merchantId)
@@ -87,8 +103,7 @@ public class FlowServiceImpl implements FlowService {
                         return Mono.error(new IllegalStateException("No se pudo crear el PaymentIntent"));
                     }
 
-                    log.info("[FlowService] PaymentIntent creado - id={}, merchantId={}",
-                            paymentIntent.getId(), merchantId);
+                    log.info("[FlowService] PaymentIntent creado - id={}, merchantId={}", paymentIntent.getId(), merchantId);
 
                     // Crear entidad de pago local
                     PaymentDTO entity = new PaymentDTO();
@@ -101,13 +116,13 @@ public class FlowServiceImpl implements FlowService {
                     // Guardar en Redis de forma reactiva
                     String paymentKey = PAYMENT_KEY_PREFIX + commerceOrder;
                     return Mono.fromRunnable(() ->
-                        paymentRedisTemplate.opsForValue().set(paymentKey, entity, PAYMENT_EXPIRATION_HOURS, TimeUnit.HOURS)
+                            paymentRedisTemplate.opsForValue().set(paymentKey, entity, PAYMENT_EXPIRATION_HOURS, TimeUnit.HOURS)
                     ).thenReturn(entity);
                 })
                 .flatMap(entity -> {
                     // Crear el pago en Flow
                     Map<String, String> params = Map.ofEntries(
-                            Map.entry("apiKey", apiKey),
+                            Map.entry("apiKey", effectiveApiKey),
                             Map.entry("commerceOrder", commerceOrder),
                             Map.entry("urlConfirmation", publicUrl + "/api/flow/confirmation"),
                             Map.entry("urlReturn", publicUrl + "/flow/return"),
@@ -119,7 +134,7 @@ public class FlowServiceImpl implements FlowService {
 
                     String signature;
                     try {
-                        signature = signParams(params, secretKey);
+                        signature = signParams(params, effectiveSecretKey);
                     } catch (Exception e) {
                         return Mono.error(new RuntimeException("Error generando firma", e));
                     }
@@ -140,8 +155,7 @@ public class FlowServiceImpl implements FlowService {
                             .retrieve()
                             .onStatus(HttpStatusCode::isError, (ClientResponse resp) ->
                                     resp.bodyToMono(String.class).flatMap(body -> {
-                                        log.error("[FlowService] Error HTTP {} en payment/create. Body: {}",
-                                                resp.statusCode(), body);
+                                        log.error("[FlowService] Error HTTP {} en payment/create. Body: {}", resp.statusCode(), body);
                                         return Mono.error(new RuntimeException("Error Flow: " + resp.statusCode()));
                                     })
                             )
@@ -165,13 +179,8 @@ public class FlowServiceImpl implements FlowService {
                                 }).thenReturn(url + "?token=" + token);
                             });
                 })
-                .doOnSuccess(flowUrl ->
-                    log.info("[FlowService] Pago creado exitosamente - commerceOrder={}, merchantId={}",
-                            commerceOrder, merchantId)
-                )
-                .doOnError(e ->
-                    log.error("[FlowService] Error creando pago en Flow", e)
-                );
+                .doOnSuccess(flowUrl -> log.info("[FlowService] Pago creado exitosamente - commerceOrder={} merchantId={} flowRedirect={}", commerceOrder, merchantId, flowUrl))
+                .doOnError(e -> log.error("[FlowService] Error creando pago en Flow", e));
     }
 
     @Override
