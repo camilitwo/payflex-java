@@ -3,9 +3,12 @@ package com.auth.web;
 
 import com.auth.dto.PaymentDTO;
 import com.auth.service.FlowService;
+import com.auth.util.JwtUtils;
 import lombok.Data;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -21,10 +24,23 @@ public class PaymentController {
     // 1) Front llama aquí para iniciar pago - Acepta JSON y form-urlencoded
     @PostMapping("/checkout")
     public ResponseEntity<?> createPayment(
+            @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) String email,
             @RequestParam(required = false) Long amount,
             @RequestParam(required = false) String subject,
             @RequestBody(required = false) CreatePaymentRequest jsonRequest) {
+
+        // Extraer merchantId del JWT
+        String merchantId = null;
+        if (jwt != null) {
+            merchantId = JwtUtils.extractMerchantId(jwt);
+        }
+
+        // Si no hay merchantId en el JWT, usar un valor por defecto o rechazar
+        if (merchantId == null || merchantId.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ErrorResponse("No se pudo identificar el merchant. JWT inválido o ausente."));
+        }
 
         // Priorizar JSON si viene en el body
         String finalEmail = (jsonRequest != null && jsonRequest.getEmail() != null)
@@ -49,7 +65,7 @@ public class PaymentController {
         }
 
         try {
-            String flowUrl = flowService.createPayment(finalEmail, finalAmount, finalSubject);
+            String flowUrl = flowService.createPayment(merchantId, finalEmail, finalAmount, finalSubject);
             return ResponseEntity.ok().body(new CreatePaymentResponse(flowUrl));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

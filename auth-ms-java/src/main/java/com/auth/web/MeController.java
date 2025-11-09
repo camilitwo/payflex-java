@@ -11,6 +11,7 @@ import com.auth.dto.MerchantBalanceDto;
 import com.auth.dto.PaymentIntentDto;
 import com.auth.dto.TransactionListDto;
 import com.auth.dto.WithdrawalDto;
+import com.auth.util.JwtUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -47,7 +48,7 @@ public class MeController {
       return Mono.just(ResponseEntity.status(401).build());
     }
 
-    String merchantId = extractMerchantId(jwt);
+    String merchantId = JwtUtils.extractMerchantId(jwt);
     if (merchantId == null || merchantId.isBlank()) {
       log.warn("[MeController] merchantId no encontrado en JWT claims");
       return Mono.just(ResponseEntity.status(400).build());
@@ -75,7 +76,7 @@ public class MeController {
       return Mono.just(ResponseEntity.status(401).build());
     }
 
-    String merchantId = extractMerchantId(jwt);
+    String merchantId = JwtUtils.extractMerchantId(jwt);
     if (merchantId == null || merchantId.isBlank()) {
       log.warn("[MeController] merchantId no encontrado en JWT claims para /users");
       return Mono.just(ResponseEntity.status(400).build());
@@ -109,7 +110,7 @@ public class MeController {
       return Mono.just(ResponseEntity.status(401).build());
     }
 
-    String merchantId = extractMerchantId(jwt);
+    String merchantId = JwtUtils.extractMerchantId(jwt);
     if (merchantId == null || merchantId.isBlank()) {
       log.warn("[MeController] merchantId no encontrado en JWT claims para /config");
       return Mono.just(ResponseEntity.status(400).build());
@@ -137,7 +138,7 @@ public class MeController {
       return Mono.just(ResponseEntity.status(401).build());
     }
 
-    String merchantId = extractMerchantId(jwt);
+    String merchantId = JwtUtils.extractMerchantId(jwt);
     if (merchantId == null || merchantId.isBlank()) {
       log.warn("[MeController] merchantId no encontrado en JWT claims para /summary");
       return Mono.just(ResponseEntity.status(400).build());
@@ -188,7 +189,7 @@ public class MeController {
       return Mono.just(ResponseEntity.status(401).build());
     }
 
-    String merchantId = extractMerchantId(jwt);
+    String merchantId = JwtUtils.extractMerchantId(jwt);
     if (merchantId == null || merchantId.isBlank()) {
       log.warn("[MeController] merchantId no encontrado en JWT claims para /dashboard/stats");
       return Mono.just(ResponseEntity.status(400).build());
@@ -220,7 +221,7 @@ public class MeController {
       return Mono.just(ResponseEntity.status(401).build());
     }
 
-    String merchantId = extractMerchantId(jwt);
+    String merchantId = JwtUtils.extractMerchantId(jwt);
     if (merchantId == null || merchantId.isBlank()) {
       log.warn("[MeController] merchantId no encontrado en JWT claims para /transactions");
       return Mono.just(ResponseEntity.status(400).build());
@@ -250,7 +251,7 @@ public class MeController {
       return Mono.just(ResponseEntity.status(401).build());
     }
 
-    String merchantId = extractMerchantId(jwt);
+    String merchantId = JwtUtils.extractMerchantId(jwt);
     if (merchantId == null || merchantId.isBlank()) {
       log.warn("[MeController] merchantId no encontrado en JWT claims para crear transaction");
       return Mono.just(ResponseEntity.status(400).build());
@@ -287,7 +288,7 @@ public class MeController {
       return Mono.just(ResponseEntity.status(401).build());
     }
 
-    String merchantId = extractMerchantId(jwt);
+    String merchantId = JwtUtils.extractMerchantId(jwt);
     if (merchantId == null || merchantId.isBlank()) {
       log.warn("[MeController] merchantId no encontrado en JWT claims para /balance");
       return Mono.just(ResponseEntity.status(400).build());
@@ -319,7 +320,7 @@ public class MeController {
       return Mono.just(ResponseEntity.status(401).build());
     }
 
-    String merchantId = extractMerchantId(jwt);
+    String merchantId = JwtUtils.extractMerchantId(jwt);
     if (merchantId == null || merchantId.isBlank()) {
       log.warn("[MeController] merchantId no encontrado en JWT claims para crear withdrawal");
       return Mono.just(ResponseEntity.status(400).build());
@@ -363,7 +364,7 @@ public class MeController {
       return Mono.just(ResponseEntity.status(401).build());
     }
 
-    String merchantId = extractMerchantId(jwt);
+    String merchantId = JwtUtils.extractMerchantId(jwt);
     if (merchantId == null || merchantId.isBlank()) {
       log.warn("[MeController] merchantId no encontrado en JWT claims para /withdrawals");
       return Mono.just(ResponseEntity.status(400).build());
@@ -399,7 +400,7 @@ public class MeController {
       return Mono.just(ResponseEntity.status(401).build());
     }
 
-    String merchantId = extractMerchantId(jwt);
+    String merchantId = JwtUtils.extractMerchantId(jwt);
     if (merchantId == null || merchantId.isBlank()) {
       log.warn("[MeController] merchantId no encontrado en JWT claims para /withdrawals/{}", id);
       return Mono.just(ResponseEntity.status(400).build());
@@ -431,7 +432,7 @@ public class MeController {
       return Mono.just(ResponseEntity.status(401).build());
     }
 
-    String merchantId = extractMerchantId(jwt);
+    String merchantId = JwtUtils.extractMerchantId(jwt);
     if (merchantId == null || merchantId.isBlank()) {
       log.warn("[MeController] merchantId no encontrado en JWT claims para cancelar withdrawal");
       return Mono.just(ResponseEntity.status(400).build());
@@ -447,30 +448,6 @@ public class MeController {
             .then(Mono.just(ResponseEntity.ok().<Void>build()))
             .defaultIfEmpty(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build())
             .doOnError(e -> log.error("[MeController] Error cancelando withdrawal: {}", e.getMessage(), e));
-  }
-
-
-
-  /**
-   * Extrae el merchantId del JWT. Primero intenta obtenerlo del claim "merchantId",
-   * si no existe, lo deriva del "sub" (userId).
-   */
-  private String extractMerchantId(Jwt jwt) {
-    Object merchantIdObj = jwt.getClaims().get("merchantId");
-    if (merchantIdObj != null) {
-      return String.valueOf(merchantIdObj);
-    }
-
-    // Fallback: derivar del sub (igual que en AuthController)
-    Object subObj = jwt.getClaims().get("sub");
-    if (subObj != null) {
-      String sub = String.valueOf(subObj);
-      if (!sub.isBlank()) {
-        return "mrc_" + sub.substring(0, Math.min(sub.length(), 8));
-      }
-    }
-
-    return null;
   }
 }
 

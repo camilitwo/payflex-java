@@ -61,14 +61,16 @@ public class FlowServiceImpl implements FlowService {
     }
 
     @Override
-    public String createPayment(String email, Long amount, String subject) {
+    public String createPayment(String merchantId, String email, Long amount, String subject) {
         try {
             String commerceOrder = UUID.randomUUID().toString();
 
-            log.info("[FlowService] Iniciando pago - email={}, amount={}, subject={}", email, amount, subject);
+            log.info("[FlowService] Iniciando pago - merchantId={}, email={}, amount={}, subject={}",
+                    merchantId, email, amount, subject);
 
-            // Crear PaymentIntent en el sistema (sin autenticación por ahora, se puede mejorar después)
+            // Crear PaymentIntent en el sistema con merchantId del JWT
             CreatePaymentIntentRequest piRequest = CreatePaymentIntentRequest.builder()
+                    .merchantId(merchantId)
                     .amount(BigDecimal.valueOf(amount))
                     .currency("CLP")
                     .description(subject)
@@ -84,7 +86,8 @@ public class FlowServiceImpl implements FlowService {
                 throw new IllegalStateException("No se pudo crear el PaymentIntent");
             }
 
-            log.info("[FlowService] PaymentIntent creado - id={}", paymentIntent.getId());
+            log.info("[FlowService] PaymentIntent creado - id={}, merchantId={}",
+                    paymentIntent.getId(), merchantId);
 
             // Crear entidad de pago local
             PaymentDTO entity = new PaymentDTO();
@@ -138,7 +141,8 @@ public class FlowServiceImpl implements FlowService {
             String tokenKey = TOKEN_KEY_PREFIX + token;
             stringRedisTemplate.opsForValue().set(tokenKey, commerceOrder, PAYMENT_EXPIRATION_HOURS, TimeUnit.HOURS);
 
-            log.info("[FlowService] Pago creado exitosamente - commerceOrder={}, flowToken={}", commerceOrder, token);
+            log.info("[FlowService] Pago creado exitosamente - commerceOrder={}, flowToken={}, merchantId={}",
+                    commerceOrder, token, merchantId);
 
             return url + "?token=" + token;
         } catch (Exception e) {
