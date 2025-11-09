@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -32,7 +33,7 @@ public class FlowServiceImpl implements FlowService {
     private final WebClient flowWebClient;
     private final MerchantQueryClient merchantQueryClient;
     private final RedisTemplate<String, PaymentDTO> paymentRedisTemplate;
-    private final RedisTemplate<String, String> stringRedisTemplate;
+    private final StringRedisTemplate stringRedisTemplate;
 
     private final String apiKey;
     private final String secretKey;
@@ -46,7 +47,7 @@ public class FlowServiceImpl implements FlowService {
     public FlowServiceImpl(WebClient flowWebClient,
                        MerchantQueryClient merchantQueryClient,
                        @Qualifier("paymentRedisTemplate") RedisTemplate<String, PaymentDTO> paymentRedisTemplate,
-                       @Qualifier("stringRedisTemplate") RedisTemplate<String, String> stringRedisTemplate,
+                       StringRedisTemplate stringRedisTemplate,
                        @Value("${flow.api-key}") String apiKey,
                        @Value("${flow.secret-key}") String secretKey,
                        @Value("${flow.public-url}") String publicUrl) {

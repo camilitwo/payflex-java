@@ -11,7 +11,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 @Configuration
 public class RedisConfig {
 
-    @Bean
+    @Bean(name = "paymentRedisTemplate")
     public RedisTemplate<String, PaymentDTO> paymentRedisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, PaymentDTO> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
@@ -24,20 +24,6 @@ public class RedisConfig {
         Jackson2JsonRedisSerializer<PaymentDTO> serializer = new Jackson2JsonRedisSerializer<>(PaymentDTO.class);
         template.setValueSerializer(serializer);
         template.setHashValueSerializer(serializer);
-
-        template.afterPropertiesSet();
-        return template;
-    }
-
-    @Bean
-    public RedisTemplate<String, String> stringRedisTemplate(RedisConnectionFactory connectionFactory) {
-        RedisTemplate<String, String> template = new RedisTemplate<>();
-        template.setConnectionFactory(connectionFactory);
-
-        template.setKeySerializer(new StringRedisSerializer());
-        template.setHashKeySerializer(new StringRedisSerializer());
-        template.setValueSerializer(new StringRedisSerializer());
-        template.setHashValueSerializer(new StringRedisSerializer());
 
         template.afterPropertiesSet();
         return template;
