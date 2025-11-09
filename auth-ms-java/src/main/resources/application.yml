@@ -13,6 +13,19 @@ spring:
           management-base-url: http://${RAILWAY_PRIVATE_DOMAIN}:${PORT:8081}
           service-base-url: http://${RAILWAY_PRIVATE_DOMAIN}:${PORT:8081}
 
+  data:
+    redis:
+      host: ${REDISHOST:localhost}
+      port: ${REDISPORT:6379}
+      password: ${REDISPASSWORD:}
+      timeout: 60000
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
 auth:
   issuer: ${AUTH_ISSUER:https://auth.payflex.local}
   audience: ${AUTH_AUDIENCE:payflex-apis}
@@ -24,6 +37,12 @@ auth:
     secure: ${COOKIE_SECURE:true}
     sameSite: ${COOKIE_SAMESITE:Lax}
     httpOnly: ${COOKIE_HTTP_ONLY:true}
+
+flow:
+  base-url: https://sandbox.flow.cl/api
+  api-key: ${FLOW_API_KEY}
+  secret-key: ${FLOW_SECRET_KEY}
+  public-url: http://localhost:3000
 
 pocketbase:
   url: ${POCKETBASE_URL:http://localhost:8090}

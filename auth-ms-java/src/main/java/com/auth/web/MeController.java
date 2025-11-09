@@ -450,6 +450,7 @@ public class MeController {
   }
 
 
+
   /**
    * Extrae el merchantId del JWT. Primero intenta obtenerlo del claim "merchantId",
    * si no existe, lo deriva del "sub" (userId).
